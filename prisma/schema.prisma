@@ -1,0 +1,68 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Scenario {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  targetUrl   String
+  code        String   // Playwright test code
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  executions  Execution[]
+
+  @@map("scenarios")
+}
+
+model Execution {
+  id          String          @id @default(cuid())
+  scenarioId  String
+  status      ExecutionStatus
+  result      String?         // JSON string containing execution results
+  error       String?         // Error message if execution failed
+  startedAt   DateTime        @default(now())
+  completedAt DateTime?
+
+  // Relations
+  scenario    Scenario        @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+
+  @@map("executions")
+}
+
+enum ExecutionStatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  FAILED
+}
+
+model RecordingSession {
+  id          String             @id @default(cuid())
+  url         String
+  status      RecordingStatus
+  outputFile  String?
+  processId   Int?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  @@map("recording_sessions")
+}
+
+enum RecordingStatus {
+  STARTING
+  RECORDING
+  STOPPED
+  COMPLETED
+  FAILED
+}
