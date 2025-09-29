@@ -1,6 +1,6 @@
-import { StatusBadge } from "@/shared/components";
-import { ActionButtonGroup } from "./action-button-group";
-import type { Scenario } from "@/shared/types";
+import {StatusBadge} from "@/shared/components";
+import {ActionButtonGroup} from "@/features/scenarios";
+import type {Scenario} from "@/shared/types";
 
 interface ScenarioItemProps {
   scenario: Scenario;
