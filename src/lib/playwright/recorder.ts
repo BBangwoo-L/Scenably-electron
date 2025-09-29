@@ -95,7 +95,7 @@ export class PlaywrightRecorder {
       console.log(`✅ Session created with ID: ${session.id}`);
 
       // Start Playwright codegen in the background
-      let command = [
+      const command = [
         'playwright',
         'codegen',
         url,

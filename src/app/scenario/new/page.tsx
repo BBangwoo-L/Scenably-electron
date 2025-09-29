@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense } from "react";
-import { ScenarioBuilder } from "@/components/scenario/scenario-builder";
+import { ScenarioBuilder } from "@/features/scenarios/components";
 
 function ScenarioBuilderPage() {
   return (

@@ -1,6 +1,6 @@
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
+import { Card, CardContent, CardHeader, CardTitle } from "@/shared/ui";
 import { Globe, Video, Code2, Zap, Play, Wand2 } from "lucide-react";
 
 export function QuickStartGuide() {

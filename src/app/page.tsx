@@ -1,7 +1,5 @@
-import { ScenarioList } from "@/components/scenario/scenario-list";
-import { UrlInput } from "@/components/scenario/url-input";
-import { QuickStartGuide } from "@/components/scenario/quick-start-guide";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui";
+import { ScenarioList, UrlInput, QuickStartGuide } from "@/features/scenarios/components";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/ui";
 
 export default function Home() {
   return (

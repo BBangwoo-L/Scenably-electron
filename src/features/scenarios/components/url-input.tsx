@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button, Input, Label } from "@/components/ui";
+import { Button, Input, Label } from "@/shared/ui";
 import { Globe, ArrowRight } from "lucide-react";
 
 export function UrlInput() {
