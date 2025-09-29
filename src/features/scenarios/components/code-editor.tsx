@@ -1,4 +1,8 @@
-import { Card, CardContent, CardHeader, CardTitle, Label, Textarea } from "@/shared/ui";
+"use client";
+
+import { useState } from "react";
+import { EnhancedCodePreview } from "./enhanced-code-preview";
+import { FullscreenCodeEditor } from "./fullscreen-code-editor";
 import type { ScenarioData } from "../hooks";
 
 interface CodeEditorProps {
@@ -7,23 +11,36 @@ interface CodeEditorProps {
 }
 
 export function CodeEditor({ scenarioData, onUpdate }: CodeEditorProps) {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const handleCodeSave = (newCode: string) => {
+    onUpdate({ code: newCode });
+  };
+
+  const handleFullScreen = () => {
+    setIsModalOpen(true);
+  };
+
   return (
-    <Card className="lg:col-span-1">
-      <CardHeader>
-        <CardTitle>E2E 테스트 코드</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-2">
-          <Label htmlFor="code">테스트 스크립트</Label>
-          <Textarea
-            id="code"
-            value={scenarioData.code}
-            onChange={(e) => onUpdate({ code: e.target.value })}
-            className="font-mono text-sm min-h-[500px]"
-            placeholder="E2E 테스트 코드를 여기에 입력하세요..."
-          />
-        </div>
-      </CardContent>
-    </Card>
+    <>
+      <EnhancedCodePreview
+        code={scenarioData.code}
+        title="E2E 테스트 코드"
+        maxLines={12}
+        onEdit={() => setIsModalOpen(true)}
+        onFullScreen={handleFullScreen}
+        showStats={true}
+        className="shadow-sm hover:shadow-md transition-shadow"
+      />
+
+      <FullscreenCodeEditor
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        code={scenarioData.code}
+        onSave={handleCodeSave}
+        title="E2E 테스트 코드 편집"
+        placeholder="E2E 테스트 코드를 여기에 입력하세요..."
+      />
+    </>
   );
 }

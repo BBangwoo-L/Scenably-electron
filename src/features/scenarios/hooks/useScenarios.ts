@@ -1,3 +1,5 @@
+"use client";
+
 import { useState, useEffect } from 'react';
 import type { Scenario } from '@/shared/types';
 import { ScenarioService } from '../services';

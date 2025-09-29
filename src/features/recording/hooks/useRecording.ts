@@ -1,3 +1,5 @@
+"use client";
+
 import { useState } from 'react';
 import type { RecordingSession, RecordingMode } from '@/shared/types';
 import { RecordingService } from '../services';

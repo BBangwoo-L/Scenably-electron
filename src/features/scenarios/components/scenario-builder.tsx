@@ -150,11 +150,13 @@ export function ScenarioBuilder() {
         />
       </div>
 
-      {/* Right Column - Code Editor */}
-      <CodeEditor
-        scenarioData={scenarioData}
-        onUpdate={updateScenarioData}
-      />
+      {/* Right Column - Code Preview */}
+      <div>
+        <CodeEditor
+          scenarioData={scenarioData}
+          onUpdate={updateScenarioData}
+        />
+      </div>
     </div>
   );
 }

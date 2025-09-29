@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button, Card, CardContent, CardHeader, CardTitle, Input, Label, Textarea } from "@/shared/ui";
+import { EnhancedCodePreview, FullscreenCodeEditor } from "@/features/scenarios/components";
 import { ArrowLeft, Save, Play, Wand2 } from "lucide-react";
 
 interface Scenario {
@@ -23,6 +24,7 @@ export default function EditScenarioPage() {
   const [scenario, setScenario] = useState<Scenario | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(true);
+  const [isCodeEditorOpen, setIsCodeEditorOpen] = useState(false);
 
   useEffect(() => {
     if (scenarioId) {
@@ -154,6 +156,12 @@ export default function EditScenarioPage() {
     }
   };
 
+  const handleCodeUpdate = (newCode: string) => {
+    if (scenario) {
+      setScenario({ ...scenario, code: newCode });
+    }
+  };
+
   if (isFetching) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -270,25 +278,26 @@ export default function EditScenarioPage() {
         </div>
 
         {/* Right Column - Code Editor */}
-        <Card className="lg:col-span-1">
-          <CardHeader>
-            <CardTitle>E2E 테스트 코드</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <Label htmlFor="code">테스트 스크립트</Label>
-              <Textarea
-                id="code"
-                value={scenario.code}
-                onChange={(e) =>
-                  setScenario({ ...scenario, code: e.target.value })
-                }
-                className="font-mono text-sm min-h-[500px]"
-                placeholder="E2E 테스트 코드를 여기에 입력하세요..."
-              />
-            </div>
-          </CardContent>
-        </Card>
+        <div className="lg:col-span-1">
+          <EnhancedCodePreview
+            code={scenario.code}
+            title="E2E 테스트 코드"
+            maxLines={20}
+            onEdit={() => setIsCodeEditorOpen(true)}
+            onFullScreen={() => setIsCodeEditorOpen(true)}
+            showStats={true}
+            className="shadow-sm hover:shadow-md transition-shadow h-full"
+          />
+
+          <FullscreenCodeEditor
+            isOpen={isCodeEditorOpen}
+            onClose={() => setIsCodeEditorOpen(false)}
+            code={scenario.code}
+            onSave={handleCodeUpdate}
+            title="E2E 테스트 코드 편집"
+            placeholder="E2E 테스트 코드를 여기에 입력하세요..."
+          />
+        </div>
       </div>
     </div>
   );
