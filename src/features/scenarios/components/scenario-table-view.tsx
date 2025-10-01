@@ -29,10 +29,10 @@ export function ScenarioTableView({
           <thead className="bg-muted/50">
             <tr className="text-left">
               <th className="p-3 font-medium">시나리오</th>
-              <th className="p-3 font-medium">URL</th>
+              <th className="p-3 font-medium hidden sm:table-cell">URL</th>
               <th className="p-3 font-medium">상태</th>
-              <th className="p-3 font-medium">업데이트</th>
-              <th className="p-3 font-medium w-32">작업</th>
+              <th className="p-3 font-medium hidden md:table-cell">업데이트</th>
+              <th className="p-3 font-medium w-24 sm:w-32">작업</th>
             </tr>
           </thead>
           <tbody>
@@ -43,15 +43,24 @@ export function ScenarioTableView({
                 <tr key={scenario.id} className="border-t hover:bg-muted/25">
                   <td className="p-3">
                     <div>
-                      <div className="font-medium">{scenario.name}</div>
+                      <div className="font-medium text-sm sm:text-base">{scenario.name}</div>
                       {scenario.description && (
-                        <div className="text-sm text-muted-foreground">
+                        <div className="text-xs sm:text-sm text-muted-foreground mt-1">
                           {scenario.description}
                         </div>
                       )}
+                      {/* 모바일에서 URL과 업데이트 정보 표시 */}
+                      <div className="sm:hidden mt-2 space-y-1">
+                        <div className="text-xs text-muted-foreground truncate">
+                          {scenario.targetUrl}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {new Date(scenario.updatedAt).toLocaleDateString()}
+                        </div>
+                      </div>
                     </div>
                   </td>
-                  <td className="p-3">
+                  <td className="p-3 hidden sm:table-cell">
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-muted-foreground truncate max-w-48">
                         {scenario.targetUrl}
@@ -73,50 +82,50 @@ export function ScenarioTableView({
                       <Badge variant="secondary">대기중</Badge>
                     )}
                   </td>
-                  <td className="p-3">
+                  <td className="p-3 hidden md:table-cell">
                     <span className="text-sm text-muted-foreground">
                       {new Date(scenario.updatedAt).toLocaleDateString()}
                     </span>
                   </td>
                   <td className="p-3">
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 flex-wrap">
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-8 w-8 p-0"
+                        className="h-7 w-7 sm:h-8 sm:w-8 p-0"
                         onClick={() => onRun(scenario.id)}
                         disabled={isLoading || isRunning}
                         title="실행"
                       >
-                        <Play className="h-4 w-4" />
+                        <Play className="h-3 w-3 sm:h-4 sm:w-4" />
                       </Button>
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-8 w-8 p-0"
+                        className="h-7 w-7 sm:h-8 sm:w-8 p-0"
                         onClick={() => onEdit(scenario)}
                         title="편집"
                       >
-                        <Edit className="h-4 w-4" />
+                        <Edit className="h-3 w-3 sm:h-4 sm:w-4" />
                       </Button>
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-8 w-8 p-0"
+                        className="h-7 w-7 sm:h-8 sm:w-8 p-0 hidden sm:flex"
                         onClick={() => onDebug(scenario.id)}
                         disabled={isLoading}
                         title="디버그"
                       >
-                        <Bug className="h-4 w-4" />
+                        <Bug className="h-3 w-3 sm:h-4 sm:w-4" />
                       </Button>
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                        className="h-7 w-7 sm:h-8 sm:w-8 p-0 text-destructive hover:text-destructive"
                         onClick={() => onDelete(scenario.id)}
                         title="삭제"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
                       </Button>
                     </div>
                   </td>

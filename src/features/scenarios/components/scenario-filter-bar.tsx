@@ -84,7 +84,7 @@ export function ScenarioFilterBar({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-4">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
           <Input
@@ -95,59 +95,61 @@ export function ScenarioFilterBar({
           />
         </div>
 
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setShowFilters(!showFilters)}
-          className="flex items-center gap-2"
-        >
-          <Filter className="h-4 w-4" />
-          필터
+        <div className="flex items-center gap-2 justify-between sm:justify-start">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowFilters(!showFilters)}
+            className="flex items-center gap-2"
+          >
+            <Filter className="h-4 w-4" />
+            <span className="hidden xs:inline">필터</span>
+            {hasActiveFilters && (
+              <Badge variant="secondary" className="ml-1 h-5 w-5 rounded-full p-0 text-xs">
+                !
+              </Badge>
+            )}
+          </Button>
+
+          <div className="flex items-center border rounded-md">
+            <Button
+              variant={viewMode === "card" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => onViewModeChange?.("card")}
+              className="rounded-r-none border-0"
+            >
+              <Grid className="h-4 w-4" />
+            </Button>
+            <Button
+              variant={viewMode === "table" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => onViewModeChange?.("table")}
+              className="rounded-l-none border-0"
+            >
+              <List className="h-4 w-4" />
+            </Button>
+          </div>
+
           {hasActiveFilters && (
-            <Badge variant="secondary" className="ml-1 h-5 w-5 rounded-full p-0 text-xs">
-              !
-            </Badge>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearFilters}
+              className="flex items-center gap-2 text-muted-foreground"
+            >
+              <X className="h-4 w-4" />
+              <span className="hidden xs:inline">초기화</span>
+            </Button>
           )}
-        </Button>
-
-        <div className="flex items-center border rounded-md">
-          <Button
-            variant={viewMode === "card" ? "default" : "ghost"}
-            size="sm"
-            onClick={() => onViewModeChange?.("card")}
-            className="rounded-r-none border-0"
-          >
-            <Grid className="h-4 w-4" />
-          </Button>
-          <Button
-            variant={viewMode === "table" ? "default" : "ghost"}
-            size="sm"
-            onClick={() => onViewModeChange?.("table")}
-            className="rounded-l-none border-0"
-          >
-            <List className="h-4 w-4" />
-          </Button>
         </div>
-
-        {hasActiveFilters && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={clearFilters}
-            className="flex items-center gap-2 text-muted-foreground"
-          >
-            <X className="h-4 w-4" />
-            초기화
-          </Button>
-        )}
       </div>
 
       {showFilters && (
-        <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-lg">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">상태:</span>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-4 bg-muted/50 rounded-lg">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <span className="text-sm font-medium whitespace-nowrap">상태:</span>
             <Select value={filters.status} onValueChange={(value) => updateFilter("status", value)}>
-              <SelectTrigger className="w-32">
+              <SelectTrigger className="w-full sm:w-32">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -160,8 +162,8 @@ export function ScenarioFilterBar({
             </Select>
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">그룹:</span>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <span className="text-sm font-medium whitespace-nowrap">그룹:</span>
             <Select
               value={groupBy}
               onValueChange={(value: "none" | "domain" | "status") => {
@@ -169,7 +171,7 @@ export function ScenarioFilterBar({
                 onGroupByChange?.(value);
               }}
             >
-              <SelectTrigger className="w-28">
+              <SelectTrigger className="w-full sm:w-28">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -182,29 +184,31 @@ export function ScenarioFilterBar({
             </Select>
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">정렬:</span>
-            <Select value={filters.sortBy} onValueChange={(value) => updateFilter("sortBy", value)}>
-              <SelectTrigger className="w-24">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {SORT_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <span className="text-sm font-medium whitespace-nowrap">정렬:</span>
+            <div className="flex items-center gap-2 flex-1 sm:flex-none">
+              <Select value={filters.sortBy} onValueChange={(value) => updateFilter("sortBy", value)}>
+                <SelectTrigger className="w-full sm:w-24">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {SORT_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => updateFilter("sortOrder", filters.sortOrder === "asc" ? "desc" : "asc")}
-              className="px-3"
-            >
-              {filters.sortOrder === "asc" ? "↑" : "↓"}
-            </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => updateFilter("sortOrder", filters.sortOrder === "asc" ? "desc" : "asc")}
+                className="px-3 flex-shrink-0"
+              >
+                {filters.sortOrder === "asc" ? "↑" : "↓"}
+              </Button>
+            </div>
           </div>
         </div>
       )}

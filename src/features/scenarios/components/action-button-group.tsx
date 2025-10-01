@@ -22,7 +22,7 @@ export function ActionButtonGroup({
   onDelete
 }: ActionButtonGroupProps) {
   return (
-    <div className="flex items-center gap-2 mt-3">
+    <div className="flex flex-wrap items-center gap-2 mt-3">
       <LoadingButton
         size="sm"
         variant="default"
@@ -31,8 +31,9 @@ export function ActionButtonGroup({
         isLoading={isRunning}
         loadingText="실행 중..."
         icon={<Play className="h-3 w-3" />}
+        className="flex-shrink-0"
       >
-        실행
+        <span className="hidden sm:inline">실행</span>
       </LoadingButton>
 
       <LoadingButton
@@ -41,19 +42,20 @@ export function ActionButtonGroup({
         onClick={() => onEdit(scenario)}
         disabled={isRunning || isLoading}
         icon={<Edit className="h-3 w-3" />}
+        className="flex-shrink-0"
       >
-        편집
+        <span className="hidden sm:inline">편집</span>
       </LoadingButton>
 
       <LoadingButton
         size="sm"
         variant="outline"
         onClick={() => onDebug(scenario.id)}
-        className="text-blue-600 border-blue-200 hover:bg-blue-50"
+        className="text-blue-600 border-blue-200 hover:bg-blue-50 flex-shrink-0"
         disabled={isRunning || isLoading}
         icon={<Bug className="h-3 w-3" />}
       >
-        디버그
+        <span className="hidden sm:inline">디버그</span>
       </LoadingButton>
 
       <LoadingButton
@@ -62,8 +64,9 @@ export function ActionButtonGroup({
         onClick={() => onDelete(scenario.id)}
         disabled={isRunning || isLoading}
         icon={<Trash2 className="h-3 w-3" />}
+        className="flex-shrink-0"
       >
-        삭제
+        <span className="hidden sm:inline">삭제</span>
       </LoadingButton>
     </div>
   );

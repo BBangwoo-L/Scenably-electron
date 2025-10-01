@@ -156,7 +156,7 @@ export function ScenarioList() {
     return (
       <EmptyState
         title="아직 생성된 테스트 시나리오가 없습니다."
-        description="왼쪽 폼을 사용하여 첫 번째 시나리오를 만들어보세요."
+        description="'새 시나리오 생성' 버튼을 클릭하여 첫 번째 시나리오를 만들어보세요."
       />
     );
   }
