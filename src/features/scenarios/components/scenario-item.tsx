@@ -1,15 +1,7 @@
-import {StatusBadge} from "@/shared/components";
-import {ActionButtonGroup} from "@/features/scenarios";
-import type {Scenario} from "@/shared/types";
+import { StatusBadge } from "@/shared/components";
+import { ActionButtonGroup } from "@/features/scenarios";
+import type { ScenarioItemProps } from "../lib";
 
-interface ScenarioItemProps {
-  scenario: Scenario;
-  isLoading?: boolean;
-  onRun: (scenarioId: string) => void;
-  onEdit: (scenario: Scenario) => void;
-  onDebug: (scenarioId: string) => void;
-  onDelete: (scenarioId: string) => void;
-}
 
 export function ScenarioItem({
   scenario,

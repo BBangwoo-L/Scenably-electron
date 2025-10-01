@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import type { CreateScenarioData } from '@/shared/types';
+import type { CreateScenarioData } from '../lib';
 import { ScenarioService, AIService } from '../services';
 
 export interface ScenarioData extends CreateScenarioData {

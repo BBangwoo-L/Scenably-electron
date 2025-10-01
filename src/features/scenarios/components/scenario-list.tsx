@@ -7,12 +7,14 @@ import { ScenarioGroup } from "./scenario-group";
 import { ScenarioTableView } from "./scenario-table-view";
 import { ScenarioFilterBar } from "./scenario-filter-bar";
 import { useScenarios, useScenarioActions } from "../hooks";
+import { type ViewModeOption } from "@/shared/lib";
+import { filterScenarios, sortScenarios, groupScenarios, type ScenarioFilterOptions, type ScenarioGroupByOption } from "../lib";
 
 export function ScenarioList() {
   const { scenarios, isLoading, fetchScenarios, updateScenarioStatus } = useScenarios();
   const { isLoading: actionLoading, executeScenario, deleteScenario, debugScenario, editScenario } = useScenarioActions();
 
-  const [filters, setFilters] = useState({
+  const [filters, setFilters] = useState<ScenarioFilterOptions>({
     search: "",
     status: "all",
     category: "all",
@@ -20,88 +22,16 @@ export function ScenarioList() {
     sortOrder: "desc" as "asc" | "desc"
   });
 
-  const [groupBy, setGroupBy] = useState<"none" | "domain" | "status">("domain");
-  const [viewMode, setViewMode] = useState<"card" | "table">("card");
+  const [groupBy, setGroupBy] = useState<ScenarioGroupByOption>("domain");
+  const [viewMode, setViewMode] = useState<ViewModeOption>("card");
 
   const filteredAndSortedScenarios = useMemo(() => {
-    let filtered = scenarios.filter((scenario) => {
-      const matchesSearch = filters.search === "" ||
-        scenario.name.toLowerCase().includes(filters.search.toLowerCase()) ||
-        scenario.description?.toLowerCase().includes(filters.search.toLowerCase()) ||
-        scenario.targetUrl.toLowerCase().includes(filters.search.toLowerCase());
-
-      const matchesStatus = filters.status === "all" ||
-        (scenario.executions.length > 0 && scenario.executions[0].status === filters.status);
-
-      return matchesSearch && matchesStatus;
-    });
-
-    // 정렬 적용
-    filtered.sort((a, b) => {
-      let aValue: any, bValue: any;
-
-      switch (filters.sortBy) {
-        case "name":
-          aValue = a.name.toLowerCase();
-          bValue = b.name.toLowerCase();
-          break;
-        case "status":
-          aValue = a.executions.length > 0 ? a.executions[0].status : "PENDING";
-          bValue = b.executions.length > 0 ? b.executions[0].status : "PENDING";
-          break;
-        case "createdAt":
-          aValue = new Date(a.createdAt);
-          bValue = new Date(b.createdAt);
-          break;
-        case "updatedAt":
-        default:
-          aValue = new Date(a.updatedAt);
-          bValue = new Date(b.updatedAt);
-          break;
-      }
-
-      if (filters.sortOrder === "asc") {
-        return aValue > bValue ? 1 : -1;
-      } else {
-        return aValue < bValue ? 1 : -1;
-      }
-    });
-
-    return filtered;
+    const filtered = filterScenarios(scenarios, filters);
+    return sortScenarios(filtered, filters.sortBy, filters.sortOrder);
   }, [scenarios, filters]);
 
   const groupedScenarios = useMemo(() => {
-    if (groupBy === "none") {
-      return null;
-    }
-
-    const groups: Record<string, typeof filteredAndSortedScenarios> = {};
-
-    filteredAndSortedScenarios.forEach((scenario) => {
-      let groupKey: string;
-
-      if (groupBy === "domain") {
-        try {
-          const url = new URL(scenario.targetUrl);
-          groupKey = url.hostname;
-        } catch {
-          groupKey = "잘못된 URL";
-        }
-      } else if (groupBy === "status") {
-        groupKey = scenario.executions.length > 0
-          ? scenario.executions[0].status
-          : "PENDING";
-      } else {
-        groupKey = "기타";
-      }
-
-      if (!groups[groupKey]) {
-        groups[groupKey] = [];
-      }
-      groups[groupKey].push(scenario);
-    });
-
-    return groups;
+    return groupScenarios(filteredAndSortedScenarios, groupBy);
   }, [filteredAndSortedScenarios, groupBy]);
 
   const handleRun = async (scenarioId: string) => {

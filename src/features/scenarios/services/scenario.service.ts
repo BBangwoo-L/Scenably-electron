@@ -1,91 +1,34 @@
-import type { Scenario, CreateScenarioData, UpdateScenarioData, ExecutionResult } from '@/shared/types';
+import { apiClient } from '@/shared/lib';
+import { SCENARIO_API_ENDPOINTS } from '../lib';
+import type { Scenario, CreateScenarioData, UpdateScenarioData, ExecutionResult } from '../lib';
 
 export class ScenarioService {
   static async getAll(): Promise<Scenario[]> {
-    const response = await fetch("/api/scenarios");
-    if (!response.ok) {
-      throw new Error("Failed to fetch scenarios");
-    }
-    return response.json();
+    return apiClient.get<Scenario[]>(SCENARIO_API_ENDPOINTS.SCENARIOS);
   }
 
   static async getById(id: string): Promise<Scenario> {
-    const response = await fetch(`/api/scenarios/${id}`);
-    if (!response.ok) {
-      throw new Error("Failed to fetch scenario");
-    }
-    return response.json();
+    return apiClient.get<Scenario>(SCENARIO_API_ENDPOINTS.SCENARIO_BY_ID(id));
   }
 
   static async create(data: CreateScenarioData): Promise<Scenario> {
-    const response = await fetch("/api/scenarios", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(data),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || "Failed to create scenario");
-    }
-
-    return response.json();
+    return apiClient.post<Scenario>(SCENARIO_API_ENDPOINTS.SCENARIOS, data);
   }
 
   static async update(data: UpdateScenarioData): Promise<Scenario> {
     const { id, ...updateData } = data;
-    const response = await fetch(`/api/scenarios/${id}`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(updateData),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || "Failed to update scenario");
-    }
-
-    return response.json();
+    return apiClient.put<Scenario>(SCENARIO_API_ENDPOINTS.SCENARIO_BY_ID(id), updateData);
   }
 
   static async delete(id: string): Promise<void> {
-    const response = await fetch(`/api/scenarios/${id}`, {
-      method: "DELETE",
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || "Failed to delete scenario");
-    }
+    return apiClient.delete<void>(SCENARIO_API_ENDPOINTS.SCENARIO_BY_ID(id));
   }
 
   static async execute(id: string): Promise<ExecutionResult> {
-    const response = await fetch(`/api/scenarios/${id}/execute`, {
-      method: "POST",
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || "Failed to execute scenario");
-    }
-
-    return response.json();
+    return apiClient.post<ExecutionResult>(SCENARIO_API_ENDPOINTS.SCENARIO_EXECUTE(id));
   }
 
   static async debug(id: string): Promise<{ sessionId: string }> {
-    const response = await fetch(`/api/scenarios/${id}/debug`, {
-      method: "POST",
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || "Failed to start debug mode");
-    }
-
-    return response.json();
+    return apiClient.post<{ sessionId: string }>(SCENARIO_API_ENDPOINTS.SCENARIO_DEBUG(id));
   }
 }

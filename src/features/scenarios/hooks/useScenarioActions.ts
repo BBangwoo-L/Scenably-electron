@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import type { Scenario } from '@/shared/types';
+import type { Scenario } from '../lib';
 import { ScenarioService } from '../services';
 
 export function useScenarioActions() {

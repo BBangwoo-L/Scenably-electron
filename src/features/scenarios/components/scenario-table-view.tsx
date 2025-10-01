@@ -3,16 +3,8 @@
 import { Play, Edit, Bug, Trash2, ExternalLink } from "lucide-react";
 import { Button, Badge } from "@/shared/ui";
 import { StatusBadge } from "@/shared/components";
-import type { Scenario } from "@/shared/types";
+import type { ScenarioTableViewProps } from "../lib";
 
-interface ScenarioTableViewProps {
-  scenarios: Scenario[];
-  isLoading?: boolean;
-  onRun: (scenarioId: string) => void;
-  onEdit: (scenario: Scenario) => void;
-  onDebug: (scenarioId: string) => void;
-  onDelete: (scenarioId: string) => void;
-}
 
 export function ScenarioTableView({
   scenarios,

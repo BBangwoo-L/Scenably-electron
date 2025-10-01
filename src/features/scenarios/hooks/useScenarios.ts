@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import type { Scenario } from '@/shared/types';
+import type { Scenario } from '../lib';
 import { ScenarioService } from '../services';
 
 export function useScenarios() {

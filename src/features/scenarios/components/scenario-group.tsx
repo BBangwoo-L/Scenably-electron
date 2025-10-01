@@ -4,17 +4,8 @@ import { useState } from "react";
 import { ChevronDown, ChevronRight, Globe } from "lucide-react";
 import { Badge, Button } from "@/shared/ui";
 import { ScenarioItem } from "./scenario-item";
-import type { Scenario } from "@/shared/types";
+import type { ScenarioGroupProps } from "../lib";
 
-interface ScenarioGroupProps {
-  title: string;
-  scenarios: Scenario[];
-  isLoading?: boolean;
-  onRun: (scenarioId: string) => void;
-  onEdit: (scenario: Scenario) => void;
-  onDebug: (scenarioId: string) => void;
-  onDelete: (scenarioId: string) => void;
-}
 
 export function ScenarioGroup({
   title,

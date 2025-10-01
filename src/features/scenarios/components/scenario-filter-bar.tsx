@@ -3,44 +3,7 @@
 import { useState } from "react";
 import { Search, Filter, X, Grid, List } from "lucide-react";
 import { Input, Button, Badge, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui";
-
-interface FilterOptions {
-  search: string;
-  status: string;
-  category: string;
-  sortBy: string;
-  sortOrder: 'asc' | 'desc';
-}
-
-interface ScenarioFilterBarProps {
-  onFilterChange: (filters: FilterOptions) => void;
-  onGroupByChange?: (groupBy: "none" | "domain" | "status") => void;
-  onViewModeChange?: (viewMode: "card" | "table") => void;
-  viewMode?: "card" | "table";
-  totalCount: number;
-  filteredCount: number;
-}
-
-const STATUS_OPTIONS = [
-  { value: "all", label: "모든 상태" },
-  { value: "SUCCESS", label: "성공" },
-  { value: "FAILED", label: "실패" },
-  { value: "RUNNING", label: "실행중" },
-  { value: "PENDING", label: "대기중" }
-];
-
-const SORT_OPTIONS = [
-  { value: "name", label: "이름" },
-  { value: "updatedAt", label: "수정일" },
-  { value: "createdAt", label: "생성일" },
-  { value: "status", label: "상태" }
-];
-
-const GROUP_OPTIONS = [
-  { value: "none", label: "그룹 없음" },
-  { value: "domain", label: "도메인별" },
-  { value: "status", label: "상태별" }
-];
+import { type ScenarioFilterOptions, type ScenarioFilterBarProps, SCENARIO_STATUS_OPTIONS, SCENARIO_SORT_OPTIONS, SCENARIO_GROUP_OPTIONS } from "../lib";
 
 export function ScenarioFilterBar({
   onFilterChange,
@@ -50,7 +13,7 @@ export function ScenarioFilterBar({
   totalCount,
   filteredCount
 }: ScenarioFilterBarProps) {
-  const [filters, setFilters] = useState<FilterOptions>({
+  const [filters, setFilters] = useState<ScenarioFilterOptions>({
     search: "",
     status: "all",
     category: "all",
@@ -62,14 +25,14 @@ export function ScenarioFilterBar({
 
   const [showFilters, setShowFilters] = useState(false);
 
-  const updateFilter = (key: keyof FilterOptions, value: string | 'asc' | 'desc') => {
+  const updateFilter = (key: keyof ScenarioFilterOptions, value: string | 'asc' | 'desc') => {
     const newFilters = { ...filters, [key]: value };
     setFilters(newFilters);
     onFilterChange(newFilters);
   };
 
   const clearFilters = () => {
-    const defaultFilters: FilterOptions = {
+    const defaultFilters: ScenarioFilterOptions = {
       search: "",
       status: "all",
       category: "all",
@@ -153,7 +116,7 @@ export function ScenarioFilterBar({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {STATUS_OPTIONS.map((option) => (
+                {SCENARIO_STATUS_OPTIONS.map((option) => (
                   <SelectItem key={option.value} value={option.value}>
                     {option.label}
                   </SelectItem>
@@ -175,7 +138,7 @@ export function ScenarioFilterBar({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {GROUP_OPTIONS.map((option) => (
+                {SCENARIO_GROUP_OPTIONS.map((option) => (
                   <SelectItem key={option.value} value={option.value}>
                     {option.label}
                   </SelectItem>
@@ -192,7 +155,7 @@ export function ScenarioFilterBar({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {SORT_OPTIONS.map((option) => (
+                  {SCENARIO_SORT_OPTIONS.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
                       {option.label}
                     </SelectItem>
@@ -230,7 +193,7 @@ export function ScenarioFilterBar({
             )}
             {filters.status !== "all" && (
               <Badge variant="secondary" className="text-xs">
-                상태: {STATUS_OPTIONS.find(opt => opt.value === filters.status)?.label}
+                상태: {SCENARIO_STATUS_OPTIONS.find(opt => opt.value === filters.status)?.label}
               </Badge>
             )}
           </div>
