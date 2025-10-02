@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { Header } from "@/features/layout";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -13,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "E2E 테스트 관리자",
-  description: "AI 기반 웹사이트 E2E 테스트 자동화 플랫폼",
+  title: "Scenably",
+  description: "누구나 손쉽게 시나리오를 만들고 수정할 수 있는 E2E 테스트 플랫폼",
 };
 
 export default function RootLayout({
@@ -27,7 +28,10 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {children}
+        <Header />
+        <main className="min-h-screen">
+          {children}
+        </main>
       </body>
     </html>
   );

@@ -9,7 +9,6 @@ export default function Home() {
       <header className="mb-8">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex-1">
-            <h1 className="text-3xl sm:text-4xl font-bold mb-2">E2E 테스트 관리자</h1>
             <p className="text-muted-foreground text-sm sm:text-base">
               AI 도움으로 웹사이트 E2E 테스트를 생성, 관리, 실행하세요
             </p>
