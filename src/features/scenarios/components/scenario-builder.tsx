@@ -77,19 +77,7 @@ export function ScenarioBuilder() {
 
       if (result.code) {
         updateScenarioData({ code: result.code });
-
-        // Auto-save if name is provided
-        if (scenarioData.name.trim()) {
-          try {
-            await saveScenario();
-            alert("레코딩이 중지되고 시나리오가 자동 저장되었습니다! 브라우저가 자동으로 종료됩니다.");
-            setTimeout(() => navigateHome(), 1000);
-          } catch (error) {
-            alert("레코딩이 중지되고 코드가 생성되었습니다! 시나리오 이름을 입력한 후 '저장' 버튼을 클릭하세요.");
-          }
-        } else {
-          alert("레코딩이 중지되고 코드가 생성되었습니다! 시나리오 이름을 입력한 후 '저장' 버튼을 클릭하세요.");
-        }
+        alert("레코딩이 중지되고 코드가 생성되었습니다! 시나리오 이름을 입력한 후 '저장' 버튼을 클릭하세요.");
       } else {
         alert("레코딩이 중지되었지만 코드 생성에 실패했습니다. 다시 시도해주세요.");
       }

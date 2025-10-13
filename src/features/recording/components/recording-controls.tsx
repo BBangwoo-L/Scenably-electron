@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle, Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/ui";
 import { LoadingButton } from "@/shared/components";
 import { Video, Code2, Zap, Wand2, Save, Play, ArrowLeft } from "lucide-react";
-import type { RecordingMode, RecordingSession } from "@/shared/types";
+import type { RecordingMode, RecordingSession } from "@/features/recording";
 
 interface RecordingControlsProps {
   recordingMode: RecordingMode;
