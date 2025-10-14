@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button, Card, CardContent, CardHeader, CardTitle, Input, Label, Textarea } from "@/shared/ui";
 import { EnhancedCodePreview, FullscreenCodeEditor } from "@/features/scenarios/components";
-import { ArrowLeft, Save, Play, Wand2 } from "lucide-react";
+import { ArrowLeft, Save, Play, Wand2, Settings } from "lucide-react";
 
 interface Scenario {
   id: string;
@@ -162,6 +162,22 @@ export default function EditScenarioPage() {
     }
   };
 
+  const handleOptimizeCode = () => {
+    if (!scenario) return;
+
+    // URL 파라미터로 시나리오 데이터 전달
+    const params = new URLSearchParams({
+      scenarioId: scenario.id,
+      name: scenario.name,
+      description: scenario.description || '',
+      targetUrl: scenario.targetUrl,
+      code: scenario.code,
+      returnUrl: `/scenario/edit/${scenario.id}`
+    });
+
+    router.push(`/test-optimizer?${params.toString()}`);
+  };
+
   if (isFetching) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -253,6 +269,11 @@ export default function EditScenarioPage() {
               <Button onClick={handleAiModify} variant="outline" className="w-full" disabled={isLoading}>
                 <Wand2 className="mr-2 h-4 w-4" />
                 AI로 수정하기
+              </Button>
+
+              <Button onClick={handleOptimizeCode} variant="outline" className="w-full" disabled={isLoading}>
+                <Settings className="mr-2 h-4 w-4" />
+                코드 최적화하기
               </Button>
 
               <Button onClick={handleSave} disabled={isLoading} className="w-full">

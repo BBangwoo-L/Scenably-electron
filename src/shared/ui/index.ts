@@ -15,3 +15,4 @@ export { Sheet, SheetPortal, SheetOverlay, SheetTrigger, SheetClose, SheetConten
 export { Skeleton } from "./skeleton";
 export { Toaster } from "./sonner";
 export { Form, FormItem, FormLabel, FormControl, FormDescription, FormMessage, FormField } from "./form";
+export { Switch } from "./switch";
