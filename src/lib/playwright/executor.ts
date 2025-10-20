@@ -30,10 +30,137 @@ export class PlaywrightExecutor {
       // Ensure temp directory exists
       await execAsync(`mkdir -p ${this.TEMP_DIR}`);
 
-      // Write the test code to a temporary file
+      // Process file upload paths in code
+      let processedCode = code;
+
+      // Import TestFileManager if setInputFiles is used but not imported
+      if (code.includes('setInputFiles') && !code.includes('TestFileManager')) {
+        // Add require at the top with absolute path
+        const importLines = `
+const path = require('path');
+const helperPath = path.join(process.cwd(), 'temp', 'test-utils', 'file-helpers');
+console.log('시도할 파일 경로:', helperPath);
+const { TestFileManager } = require(helperPath);
+`;
+        processedCode = importLines + processedCode;
+
+        // Add file manager setup in test
+        processedCode = processedCode.replace(
+          /test\(['"`]([^'"`]+)['"`],\s*async\s*\(\s*{\s*page\s*}\s*\)\s*=>\s*{/,
+          `test('$1', async ({ page }) => {
+  const fileManager = new TestFileManager();
+
+  try {`
+        );
+
+        // Add cleanup at the end
+        processedCode = processedCode.replace(/}\);$/, `  } finally {
+    await fileManager.cleanup();
+  }
+});`);
+
+        // Replace static file paths with dynamic file creation and fix selectors
+        processedCode = processedCode.replace(
+          /(await\s+page\..*?)\.setInputFiles\s*\(\s*['"`]([^'"`]+)['"`]\s*\)/g,
+          (match, selector, filePath) => {
+            const fileName = filePath.split('/').pop()?.split('.')[0] || 'test-file';
+            const extension = filePath.split('.').pop() || 'png';
+
+            // Create appropriate file based on extension
+            let fileCreationMethod = '';
+            if (['jpg', 'jpeg', 'png', 'gif', 'bmp'].includes(extension.toLowerCase())) {
+              fileCreationMethod = `await fileManager.createTestImage({ filename: '${fileName}', extension: '${extension}' })`;
+            } else if (extension.toLowerCase() === 'pdf') {
+              fileCreationMethod = `await fileManager.createTestPDF({ filename: '${fileName}' })`;
+            } else {
+              fileCreationMethod = `await fileManager.createTestTextFile({ filename: '${fileName}', extension: '${extension}' })`;
+            }
+
+            return `// 숨겨진 파일 input 자동 감지 및 업로드
+    const fileInputs = await page.locator('input[type="file"]').all();
+    const visibleFileInput = await fileInputs.find(async (input) => {
+      const isVisible = await input.isVisible();
+      return isVisible;
+    });
+
+    const hiddenFileInput = await fileInputs.find(async (input) => {
+      const isHidden = !(await input.isVisible());
+      return isHidden;
+    });
+
+    const targetInput = visibleFileInput || hiddenFileInput || fileInputs[0];
+    if (targetInput) {
+      // 파일 업로드 시도
+      await targetInput.setInputFiles(${fileCreationMethod});
+
+      // 파일 업로드 검증 및 재시도 로직
+      let uploadSuccess = false;
+      let retryCount = 0;
+      const maxRetries = 3;
+
+      while (!uploadSuccess && retryCount < maxRetries) {
+        // 파일이 제대로 들어갔는지 확인
+        const uploadedFiles = await targetInput.evaluate((input: HTMLInputElement) => {
+          return {
+            fileCount: input.files?.length || 0,
+            fileName: input.files?.[0]?.name || '',
+            fileSize: input.files?.[0]?.size || 0
+          };
+        });
+
+        console.log(\`업로드 시도 \${retryCount + 1}: 파일 수=\${uploadedFiles.fileCount}, 파일명=\${uploadedFiles.fileName}\`);
+
+        if (uploadedFiles.fileCount > 0) {
+          console.log('✅ 파일 업로드 성공!');
+          uploadSuccess = true;
+        } else {
+          console.warn(\`❌ 파일 업로드 실패 (시도 \${retryCount + 1}/\${maxRetries})\`);
+          retryCount++;
+
+          if (retryCount < maxRetries) {
+            // 잠시 대기 후 재시도
+            await page.waitForTimeout(500);
+            console.log('🔄 파일 업로드 재시도 중...');
+
+            // 다른 input 요소들도 시도해보기
+            if (retryCount === 1 && hiddenFileInput && targetInput !== hiddenFileInput) {
+              console.log('숨겨진 input으로 재시도...');
+              await hiddenFileInput.setInputFiles(${fileCreationMethod});
+              const retryResult = await hiddenFileInput.evaluate((input: HTMLInputElement) => input.files?.length || 0);
+              if (retryResult > 0) {
+                console.log('✅ 숨겨진 input으로 업로드 성공!');
+                uploadSuccess = true;
+              }
+            } else if (retryCount === 2 && visibleFileInput && targetInput !== visibleFileInput) {
+              console.log('보이는 input으로 재시도...');
+              await visibleFileInput.setInputFiles(${fileCreationMethod});
+              const retryResult = await visibleFileInput.evaluate((input: HTMLInputElement) => input.files?.length || 0);
+              if (retryResult > 0) {
+                console.log('✅ 보이는 input으로 업로드 성공!');
+                uploadSuccess = true;
+              }
+            } else {
+              // 동일한 input으로 재시도
+              await targetInput.setInputFiles(${fileCreationMethod});
+            }
+          }
+        }
+      }
+
+      if (!uploadSuccess) {
+        console.error('❌ 모든 재시도 실패: 파일 업로드를 완료할 수 없습니다.');
+      }
+    } else {
+      console.warn('파일 input을 찾을 수 없습니다.');
+    }`;
+          }
+        );
+      }
+
+      // Write the processed test code to a temporary file
       console.log(`📝 Writing test code to: ${tempFilePath}`);
-      console.log(`📝 Code length: ${code.length} characters`);
-      await writeFile(tempFilePath, code);
+      console.log(`📝 Code length: ${processedCode.length} characters`);
+      await writeFile(tempFilePath, processedCode);
 
       // Verify file was created
       try {
@@ -200,14 +327,16 @@ export class PlaywrightExecutor {
         'test',
         tempFilePath,
         '--config=playwright.standalone.config.ts',
-        '--debug'
+        '--debug',
+        '--headed',
+        '--max-failures=0'  // Don't stop on failures
       ], {
         cwd: process.cwd(),
         stdio: ['ignore', 'pipe', 'pipe'],
         detached: false,
         env: {
           ...process.env,
-          PWDEBUG: '1',  // Enable Playwright debug mode
+          PWDEBUG: 'console',  // Keep browser open even after failures
         }
       });
 

@@ -11,3 +11,5 @@ export * from './fullscreen-code-editor';
 export * from './action-button-group';
 export * from './url-input';
 export * from './quick-start-guide';
+export * from './playwright-code-optimizer';
+export * from './file-upload-element-config';

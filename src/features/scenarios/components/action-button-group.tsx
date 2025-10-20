@@ -1,6 +1,7 @@
 import { LoadingButton } from "@/shared/components";
 import { Play, Edit, Trash2, Bug } from "lucide-react";
-import type { Scenario } from "@/shared/types";
+import {Scenario} from "@/features/scenarios";
+
 
 interface ActionButtonGroupProps {
   scenario: Scenario;

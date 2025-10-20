@@ -165,13 +165,9 @@ export default function EditScenarioPage() {
   const handleOptimizeCode = () => {
     if (!scenario) return;
 
-    // URL 파라미터로 시나리오 데이터 전달
+    // scenarioId와 returnUrl만 전달 (나머지는 서버에서 조회)
     const params = new URLSearchParams({
       scenarioId: scenario.id,
-      name: scenario.name,
-      description: scenario.description || '',
-      targetUrl: scenario.targetUrl,
-      code: scenario.code,
       returnUrl: `/scenario/edit/${scenario.id}`
     });
 
@@ -271,11 +267,6 @@ export default function EditScenarioPage() {
                 AI로 수정하기
               </Button>
 
-              <Button onClick={handleOptimizeCode} variant="outline" className="w-full" disabled={isLoading}>
-                <Settings className="mr-2 h-4 w-4" />
-                코드 최적화하기
-              </Button>
-
               <Button onClick={handleSave} disabled={isLoading} className="w-full">
                 <Save className="mr-2 h-4 w-4" />
                 {isLoading ? "저장 중..." : "시나리오 저장"}
@@ -304,7 +295,7 @@ export default function EditScenarioPage() {
             code={scenario.code}
             title="E2E 테스트 코드"
             maxLines={20}
-            onEdit={() => setIsCodeEditorOpen(true)}
+            onEdit={handleOptimizeCode}
             onFullScreen={() => setIsCodeEditorOpen(true)}
             showStats={true}
             className="shadow-sm hover:shadow-md transition-shadow h-full"
