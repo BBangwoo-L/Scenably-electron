@@ -10,7 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/shared/ui/switch';
 import { Label } from '@/shared/ui/label';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/shared/ui/accordion';
-import { Save, Upload } from 'lucide-react';
+import { Save, Upload, HelpCircle } from 'lucide-react';
+import { useToastStore } from '@/stores/toast-store';
 
 interface PlaywrightAction {
   id: string;
@@ -25,12 +26,17 @@ interface PlaywrightAction {
   maxAttempts: number;
   // 정밀한 클릭 사용 여부 (사용자가 선택)
   usePreciseClick?: boolean;
+  // 안정적 클릭 사용 여부 (조건부 렌더링 문제 해결)
+  useStableClick?: boolean;
   // 파일 업로드 전용 필드
   isFileUpload?: boolean;
   fileType?: 'image' | 'pdf' | 'text' | 'custom';
   fileName?: string;
   fileSize?: 'small' | 'medium' | 'large';
   originalFilePath?: string;
+  // 파일 캐싱 옵션
+  enableFileCache?: boolean;
+  cacheFilePath?: string;
 }
 
 interface PlaywrightCodeOptimizerProps {
@@ -39,6 +45,8 @@ interface PlaywrightCodeOptimizerProps {
   scenarioId?: string | null;
   onSaveAndReturn?: (optimizedCode: string) => Promise<void>;
 }
+
+// Helper 함수들은 생성된 코드에서만 사용 (브라우저 환경에서는 Node.js 모듈 import 불가)
 
 export function PlaywrightCodeOptimizer({
   initialCode = '',
@@ -50,6 +58,28 @@ export function PlaywrightCodeOptimizer({
   const [optimizedCode, setOptimizedCode] = useState('');
   const [actions, setActions] = useState<PlaywrightAction[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const { showToast } = useToastStore();
+
+  // 도움말 메시지들
+  const helpMessages = {
+    conditionalProcessing: "요소가 없어도 테스트가 실패하지 않도록 try-catch나 조건문으로 감싸서 처리합니다. 선택적 요소나 간헐적으로 나타나는 요소에 유용합니다.",
+    preciseClick: "여러 개의 동일한 버튼이 있을 때 위치, 다이얼로그 여부, z-index 등을 고려하여 가장 적절한 버튼을 찾아 클릭합니다.",
+    stableClick: "조건부 렌더링으로 인한 클릭 실패 문제를 해결합니다. 요소가 사라졌다 나타나는 상황에서 재시도 로직과 DOM 안정화 대기를 통해 안정적으로 클릭합니다.",
+    trycatch: "요소를 찾지 못하면 에러를 발생시키지 않고 로그만 남기고 다음 단계로 진행합니다.",
+    ifExists: "요소가 화면에 보이는 경우에만 액션을 수행합니다.",
+    waitFor: "요소가 나타날 때까지 설정된 시간만큼 대기한 후 액션을 수행합니다.",
+    loop: "여러 선택자를 순차적으로 시도하여 올바른 요소를 찾아 액션을 수행합니다."
+  };
+
+  // 도움말 표시 함수
+  const showHelp = (key: keyof typeof helpMessages) => {
+    showToast({
+      title: "도움말",
+      message: helpMessages[key],
+      type: "info",
+      duration: 5000
+    });
+  };
 
   // 초기 코드가 있으면 자동으로 파싱
   useEffect(() => {
@@ -150,6 +180,36 @@ export function PlaywrightCodeOptimizer({
   }, []);
 
 
+  // 클릭 코드 생성 함수 (브라우저에서 사용 가능)
+  const generateClickCode = useCallback((selectorType: string, selectorValue: string, name: string | null, config: {
+    useStableClick?: boolean;
+    usePreciseClick?: boolean;
+    maxRetries?: number;
+    waitTime?: number;
+  }) => {
+    if (config.useStableClick) {
+      if (name) {
+        return `await stableClickByRole(page, '${selectorValue}', { name: '${name}', maxRetries: ${config.maxRetries || 3}, waitTime: ${config.waitTime || 1000} });`;
+      } else {
+        return `await stableClickByRole(page, '${selectorValue}', { maxRetries: ${config.maxRetries || 3}, waitTime: ${config.waitTime || 1000} });`;
+      }
+    } else if (config.usePreciseClick && name) {
+      // 정밀한 클릭 (버튼 텍스트가 있는 경우만)
+      return `await clickPreciseButton(page, '${name}', { timeout: ${config.waitTime || 3000} });`;
+    } else {
+      // 기본 클릭
+      if (selectorType === 'getByRole') {
+        if (name) {
+          return `await page.getByRole('${selectorValue}', { name: '${name}' }).click();`;
+        } else {
+          return `await page.getByRole('${selectorValue}').click();`;
+        }
+      } else {
+        return `await page.locator('${selectorValue}').click();`;
+      }
+    }
+  }, []);
+
   // 최적화된 코드 생성
   const generateOptimizedCode = useCallback(() => {
     console.log('generateOptimizedCode 함수 실행됨');
@@ -162,14 +222,24 @@ export function PlaywrightCodeOptimizer({
     }
 
     const lines = originalCode.split('\n');
-    let optimizedLines: string[] = [];
+    const optimizedLines: string[] = [];
 
     // 파일 업로드 액션이 있는지 확인
     const hasFileUploads = actions.some(action => action.isFileUpload);
-    const fileUploadActions = actions.filter(action => action.isFileUpload);
+    const hasStableClicks = actions.some(action => action.useStableClick);
 
-    // 헬퍼 함수들 추가 (파일 업로드가 있으면 TestFileManager 관련 코드도 추가)
+    // Helper 함수들 import
     let helperFunctions = `
+// File helpers import
+const path = require('path');
+const helperPath = path.join(process.cwd(), 'temp', 'test-utils', 'file-helpers');
+const {
+  uploadFileToPage,
+  stableClick,
+  stableClickByRole,
+  clickPreciseButton
+} = require(helperPath);
+
 // 조건적 클릭 헬퍼 함수
 async function clickIfExists(page, selector, options = {}) {
   const timeout = options.timeout || 3000;
@@ -189,283 +259,7 @@ async function clickIfExists(page, selector, options = {}) {
   }
 }
 
-// 정밀한 버튼 클릭 헬퍼 함수 (위치 기반)
-async function clickPreciseButton(page, buttonText, options = {}) {
-  const timeout = options.timeout || 3000;
-  try {
-    console.log('🎯 "' + buttonText + '" 버튼을 정밀하게 찾는 중...');
-
-    // 모든 해당 텍스트를 가진 버튼들 찾기
-    const buttons = await page.getByRole('button', { name: buttonText }).all();
-    console.log('📍 "' + buttonText + '" 버튼 ' + buttons.length + '개 발견');
-
-    if (buttons.length === 0) {
-      console.warn('❌ "' + buttonText + '" 버튼을 찾을 수 없습니다.');
-      return false;
-    }
-
-    if (buttons.length === 1) {
-      console.log('✅ 버튼이 1개뿐이므로 바로 클릭');
-
-      // 클릭 전 상태 검증
-      const button = buttons[0];
-      const isEnabled = await button.isEnabled();
-      const isVisible = await button.isVisible();
-
-      console.log('🔍 버튼 상태 - 활성화:', isEnabled, ', 표시:', isVisible);
-
-      if (!isEnabled) {
-        console.warn('⚠️ 버튼이 비활성화 상태입니다. 대안 방법들을 시도합니다...');
-
-        // 방법 1: 잠시 대기 후 활성화 확인
-        console.log('🕐 1초 대기 후 버튼 활성화 재확인...');
-        await page.waitForTimeout(1000);
-        const isEnabledAfterWait = await button.isEnabled();
-
-        if (isEnabledAfterWait) {
-          console.log('✅ 대기 후 버튼이 활성화되었습니다!');
-          await Promise.race([
-            button.click({ timeout: timeout }),
-            new Promise((_, reject) =>
-              setTimeout(() => reject(new Error('클릭 타임아웃')), timeout)
-            )
-          ]);
-          console.log('✅ 클릭 완료!');
-          return true;
-        }
-
-        // 방법 2: force 클릭 시도
-        console.log('🔨 강제 클릭 시도...');
-        try {
-          await Promise.race([
-            button.click({ force: true, timeout: timeout }),
-            new Promise((_, reject) =>
-              setTimeout(() => reject(new Error('강제 클릭 타임아웃')), timeout)
-            )
-          ]);
-          console.log('✅ 강제 클릭 성공!');
-          return true;
-        } catch (forceError) {
-          console.log('❌ 강제 클릭 실패:', forceError.message);
-        }
-
-        // 방법 3: JavaScript 직접 실행
-        console.log('🔧 JavaScript로 직접 클릭 시도...');
-        try {
-          await button.evaluate((btn) => {
-            btn.click();
-          });
-          console.log('✅ JavaScript 클릭 성공!');
-          return true;
-        } catch (jsError) {
-          console.log('❌ JavaScript 클릭 실패:', jsError.message);
-        }
-
-        // 방법 4: 다른 선택자로 찾기
-        console.log('🔍 다른 선택자로 동일한 버튼 찾기 시도...');
-        try {
-          const alternativeSelectors = [
-            'button:has-text("' + buttonText + '")',
-            '[role="button"]:has-text("' + buttonText + '")',
-            'input[type="button"][value="' + buttonText + '"]',
-            'input[type="submit"][value="' + buttonText + '"]',
-            '*:has-text("' + buttonText + '"):last'
-          ];
-
-          for (const selector of alternativeSelectors) {
-            try {
-              const altElement = page.locator(selector);
-              const count = await altElement.count();
-              if (count > 0) {
-                const firstAlt = altElement.first();
-                const altEnabled = await firstAlt.isEnabled();
-                if (altEnabled) {
-                  console.log('✅ 대안 선택자로 활성 버튼 발견:', selector);
-                  await firstAlt.click({ timeout: timeout });
-                  console.log('✅ 대안 선택자 클릭 성공!');
-                  return true;
-                }
-              }
-            } catch (altError) {
-              continue;
-            }
-          }
-        } catch (altSelectorError) {
-          console.log('❌ 대안 선택자 시도 실패:', altSelectorError.message);
-        }
-
-        console.warn('❌ 모든 대안 방법이 실패했습니다.');
-        return false;
-      }
-
-      if (!isVisible) {
-        console.warn('⚠️ 버튼이 화면에 보이지 않습니다.');
-        return false;
-      }
-
-      // 타임아웃과 함께 클릭 시도
-      console.log('👆 클릭 시도 중...');
-      await Promise.race([
-        button.click({ timeout: timeout }),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('클릭 타임아웃')), timeout)
-        )
-      ]);
-      console.log('✅ 클릭 완료!');
-      return true;
-    }
-
-    // 여러 버튼이 있을 경우 위치 정보로 구분
-    let bestButton = null;
-    let buttonInfos = [];
-
-    for (let i = 0; i < buttons.length; i++) {
-      try {
-        const button = buttons[i];
-        const isVisible = await button.isVisible();
-
-        if (isVisible) {
-          const boundingBox = await button.boundingBox();
-          const parentInfo = await button.evaluate((btn) => {
-            const parent = btn.closest('[role="dialog"], .modal, .popup, .overlay');
-            return {
-              hasDialogParent: !!parent,
-              parentClass: parent?.className || '',
-              zIndex: window.getComputedStyle(btn).zIndex
-            };
-          });
-
-          buttonInfos.push({
-            index: i,
-            button: button,
-            boundingBox: boundingBox,
-            parentInfo: parentInfo,
-            isVisible: isVisible
-          });
-
-          console.log('📊 버튼 ' + (i + 1) + ': 위치(' + boundingBox?.x + ', ' + boundingBox?.y + '), 크기(' + boundingBox?.width + 'x' + boundingBox?.height + '), 다이얼로그 내부: ' + parentInfo.hasDialogParent + ', z-index: ' + parentInfo.zIndex);
-        }
-      } catch (error) {
-        console.log('버튼 ' + (i + 1) + ' 정보 수집 실패:', error);
-      }
-    }
-
-    // 가장 적절한 버튼 선택 로직
-    if (buttonInfos.length > 0) {
-      // 1순위: 다이얼로그/모달 내부에 있는 버튼
-      const dialogButtons = buttonInfos.filter(info => info.parentInfo.hasDialogParent);
-      if (dialogButtons.length === 1) {
-        bestButton = dialogButtons[0].button;
-        console.log('✅ 다이얼로그 내부의 유일한 버튼 선택');
-      } else if (dialogButtons.length > 1) {
-        // 2순위: z-index가 가장 높은 버튼 (최상위 레이어)
-        const topButton = dialogButtons.sort((a, b) => {
-          const aZ = parseInt(a.parentInfo.zIndex) || 0;
-          const bZ = parseInt(b.parentInfo.zIndex) || 0;
-          return bZ - aZ;
-        })[0];
-        bestButton = topButton.button;
-        console.log('✅ 가장 상위 레이어의 버튼 선택');
-      } else {
-        // 3순위: 화면 중앙에 가장 가까운 버튼
-        const centerX = await page.viewportSize().then(size => size?.width / 2 || 640);
-        const centerY = await page.viewportSize().then(size => size?.height / 2 || 360);
-
-        const closestButton = buttonInfos.sort((a, b) => {
-          const aDistance = Math.sqrt(
-            Math.pow((a.boundingBox?.x + a.boundingBox?.width / 2) - centerX, 2) +
-            Math.pow((a.boundingBox?.y + a.boundingBox?.height / 2) - centerY, 2)
-          );
-          const bDistance = Math.sqrt(
-            Math.pow((b.boundingBox?.x + b.boundingBox?.width / 2) - centerX, 2) +
-            Math.pow((b.boundingBox?.y + b.boundingBox?.height / 2) - centerY, 2)
-          );
-          return aDistance - bDistance;
-        })[0];
-        bestButton = closestButton.button;
-        console.log('✅ 화면 중앙에 가장 가까운 버튼 선택');
-      }
-    }
-
-    if (bestButton) {
-      // 선택된 버튼의 상태 검증
-      const isEnabled = await bestButton.isEnabled();
-      const isVisible = await bestButton.isVisible();
-
-      console.log('🔍 선택된 버튼 상태 - 활성화:', isEnabled, ', 표시:', isVisible);
-
-      if (!isEnabled) {
-        console.warn('⚠️ 선택된 버튼이 비활성화 상태입니다. 대안 방법들을 시도합니다...');
-
-        // 방법 1: 잠시 대기 후 활성화 확인
-        console.log('🕐 1초 대기 후 버튼 활성화 재확인...');
-        await page.waitForTimeout(1000);
-        const isEnabledAfterWait = await bestButton.isEnabled();
-
-        if (isEnabledAfterWait) {
-          console.log('✅ 대기 후 버튼이 활성화되었습니다!');
-        } else {
-          // 방법 2: force 클릭 시도
-          console.log('🔨 강제 클릭 시도...');
-          try {
-            await Promise.race([
-              bestButton.click({ force: true, timeout: timeout }),
-              new Promise((_, reject) =>
-                setTimeout(() => reject(new Error('강제 클릭 타임아웃')), timeout)
-              )
-            ]);
-            console.log('🎯 "' + buttonText + '" 버튼 강제 클릭 완료');
-            if (options.waitAfter) await page.waitForTimeout(options.waitAfter);
-            return true;
-          } catch (forceError) {
-            console.log('❌ 강제 클릭 실패:', forceError.message);
-
-            // 방법 3: JavaScript 직접 실행
-            console.log('🔧 JavaScript로 직접 클릭 시도...');
-            try {
-              await bestButton.evaluate((btn) => {
-                btn.click();
-              });
-              console.log('🎯 "' + buttonText + '" 버튼 JavaScript 클릭 완료');
-              if (options.waitAfter) await page.waitForTimeout(options.waitAfter);
-              return true;
-            } catch (jsError) {
-              console.log('❌ JavaScript 클릭 실패:', jsError.message);
-              console.warn('❌ 모든 대안 방법이 실패했습니다.');
-              return false;
-            }
-          }
-        }
-      }
-
-      if (!isVisible) {
-        console.warn('⚠️ 선택된 버튼이 화면에 보이지 않습니다.');
-        return false;
-      }
-
-      // 타임아웃과 함께 클릭 시도
-      console.log('👆 선택된 버튼 클릭 시도 중...');
-      await Promise.race([
-        bestButton.click({ timeout: timeout }),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('클릭 타임아웃')), timeout)
-        )
-      ]);
-      console.log('🎯 "' + buttonText + '" 버튼 정밀 클릭 완료');
-      if (options.waitAfter) await page.waitForTimeout(options.waitAfter);
-      return true;
-    } else {
-      console.warn('❌ 적절한 "' + buttonText + '" 버튼을 찾지 못했습니다.');
-      return false;
-    }
-
-  } catch (error) {
-    console.log('❌ 정밀한 버튼 클릭 실패: ' + error.message);
-    return false;
-  }
-}
-
-// 조건적 입력 헬퍼 함수
+// 조건적 입력 헬퍼 함수 - clickPreciseButton은 file-helpers에서 import됨
 async function fillIfExists(page, selector, value, options = {}) {
   const timeout = options.timeout || 3000;
   try {
@@ -510,217 +304,45 @@ async function clickMultipleIfExists(page, selector, maxAttempts = 5, options = 
   return attempts;
 }`;
 
-    // 파일 업로드가 있으면 TestFileManager 관련 함수 추가
-    if (hasFileUploads) {
-      helperFunctions += `
-
-// 파일 업로드 헬퍼 함수
-async function uploadTestFile(page, selector, fileConfig, options = {}) {
-  const { fileType = 'image', fileName = 'test-file', fileSize = 'small' } = fileConfig;
-  const timeout = options.timeout || 3000;
-
-  try {
-    let filePath;
-    let localFileManager = null;
-
-    // uploadTestFile 함수 내부에서 직접 TestFileManager 생성
-    try {
-      const path = require('path');
-      const helperPath = path.join(process.cwd(), 'temp', 'test-utils', 'file-helpers');
-      const fileHelpers = require(helperPath);
-      localFileManager = new fileHelpers.TestFileManager();
-      console.log('📁 uploadTestFile에서 TestFileManager 생성 성공');
-    } catch (error) {
-      console.warn('📁 uploadTestFile에서 TestFileManager 생성 실패:', error.message);
-    }
-
-    if (localFileManager) {
-      // TestFileManager로 파일 생성
-      switch (fileType) {
-        case 'image':
-          filePath = await localFileManager.createTestImage({ filename: fileName, size: fileSize });
-          break;
-        case 'pdf':
-          filePath = await localFileManager.createTestPDF({ filename: fileName });
-          break;
-        case 'text':
-          filePath = await localFileManager.createTestTextFile({ filename: fileName });
-          break;
-        default:
-          filePath = await localFileManager.createTestImage({ filename: fileName, size: fileSize });
-      }
-      console.log('📄 테스트 파일 생성됨:', filePath);
-    } else {
-      // TestFileManager가 없으면 fallback 경로 사용
-      console.warn('TestFileManager를 사용할 수 없습니다. 기본 파일 경로를 사용합니다.');
-      const extensions = { image: 'png', pdf: 'pdf', text: 'txt' };
-      const ext = extensions[fileType] || 'png';
-      filePath = './test-files/' + fileName + '.' + ext;
-    }
-
-    // 숨겨진 파일 input 자동 감지 및 업로드
-    const fileInputs = await page.locator('input[type="file"]').all();
-
-    // 1. 보이는 파일 input 찾기
-    const visibleFileInput = await fileInputs.find(async (input) => {
-      const isVisible = await input.isVisible();
-      return isVisible;
-    });
-
-    // 2. 숨겨진 파일 input 찾기
-    const hiddenFileInput = await fileInputs.find(async (input) => {
-      const isHidden = !(await input.isVisible());
-      return isHidden;
-    });
-
-    // 3. 우선순위: 보이는 input → 숨겨진 input → 첫 번째 input
-    const targetInput = visibleFileInput || hiddenFileInput || fileInputs[0];
-
-    if (targetInput) {
-      // 파일 업로드 시도
-      await targetInput.setInputFiles(filePath);
-
-      // 파일 업로드 검증 및 재시도 로직
-      let uploadSuccess = false;
-      let retryCount = 0;
-      const maxRetries = 3;
-
-      while (!uploadSuccess && retryCount < maxRetries) {
-        // 파일이 제대로 들어갔는지 확인
-        const uploadedFiles = await targetInput.evaluate((input: HTMLInputElement) => {
-          return {
-            fileCount: input.files?.length || 0,
-            fileName: input.files?.[0]?.name || '',
-            fileSize: input.files?.[0]?.size || 0
-          };
-        });
-
-        console.log('업로드 시도 ' + (retryCount + 1) + ': 파일 수=' + uploadedFiles.fileCount + ', 파일명=' + uploadedFiles.fileName);
-
-        if (uploadedFiles.fileCount > 0) {
-          console.log('✅ 파일 업로드 성공!');
-          uploadSuccess = true;
-        } else {
-          console.warn('❌ 파일 업로드 실패 (시도 ' + (retryCount + 1) + '/' + maxRetries + ')');
-          retryCount++;
-
-          if (retryCount < maxRetries) {
-            // 잠시 대기 후 재시도
-            await page.waitForTimeout(500);
-            console.log('🔄 파일 업로드 재시도 중...');
-
-            // 다른 input 요소들도 시도해보기
-            if (retryCount === 1 && hiddenFileInput && targetInput !== hiddenFileInput) {
-              console.log('숨겨진 input으로 재시도...');
-              await hiddenFileInput.setInputFiles(filePath);
-              const retryResult = await hiddenFileInput.evaluate((input: HTMLInputElement) => input.files?.length || 0);
-              if (retryResult > 0) {
-                console.log('✅ 숨겨진 input으로 업로드 성공!');
-                uploadSuccess = true;
-              }
-            } else if (retryCount === 2 && visibleFileInput && targetInput !== visibleFileInput) {
-              console.log('보이는 input으로 재시도...');
-              await visibleFileInput.setInputFiles(filePath);
-              const retryResult = await visibleFileInput.evaluate((input: HTMLInputElement) => input.files?.length || 0);
-              if (retryResult > 0) {
-                console.log('✅ 보이는 input으로 업로드 성공!');
-                uploadSuccess = true;
-              }
-            } else {
-              // 동일한 input으로 재시도
-              await targetInput.setInputFiles(filePath);
-            }
-          }
-        }
-      }
-
-      if (!uploadSuccess) {
-        console.error('❌ 모든 재시도 실패: 파일 업로드를 완료할 수 없습니다.');
-        return false;
-      }
-
-      if (options.waitAfter) await page.waitForTimeout(options.waitAfter);
-      return true;
-    } else {
-      console.warn('파일 input을 찾을 수 없습니다.');
-      return false;
-    }
-  } catch (error) {
-    console.log('파일 업로드 실패 ' + selector + ': ' + error.message);
-    return false;
-  }
-}`;
-    }
+    // 중복 import 방지 - 이미 위에서 helper 함수들을 import했으므로 이 부분 제거
 
     helperFunctions += `
 `;
 
-    // 시나리오 코드 먼저 처리
-    let testManagerAdded = false;
+    // 시나리오 코드 처리 - 중복 방지를 위해 기존 코드 확인
+    const hasExistingHelperImport = originalCode.includes('file-helpers') || originalCode.includes('uploadFileToPage');
 
     lines.forEach((line, index) => {
       const action = actions.find(a => a.line === index + 1);
 
-      // test() 함수 찾아서 TestFileManager 변수만 추가
-      if (!testManagerAdded && line.includes('test(') && line.includes('async')) {
-        optimizedLines.push(line);
-
-        // TestFileManager 변수 선언 추가 (파일 업로드가 있는 경우)
-        if (hasFileUploads) {
-          optimizedLines.push('  let globalFileManager = null;');
-          optimizedLines.push('');
-          optimizedLines.push('  // 테스트 시작 전 전역 TestFileManager 초기화 (cleanup용)');
-          optimizedLines.push('  try {');
-          optimizedLines.push('    console.log("현재 작업 디렉토리:", process.cwd());');
-          optimizedLines.push('    const path = require("path");');
-          optimizedLines.push('    const helperPath = path.join(process.cwd(), "temp", "test-utils", "file-helpers");');
-          optimizedLines.push('    console.log("시도할 파일 경로:", helperPath);');
-          optimizedLines.push('    const fileHelpers = require(helperPath);');
-          optimizedLines.push('    globalFileManager = new fileHelpers.TestFileManager();');
-          optimizedLines.push('    console.log("✅ 전역 TestFileManager 로드 성공!");');
-          optimizedLines.push('  } catch (importError) {');
-          optimizedLines.push('    console.warn("전역 TestFileManager를 찾을 수 없습니다:", importError.message);');
-          optimizedLines.push('    globalFileManager = null;');
-          optimizedLines.push('  }');
-          optimizedLines.push('');
-        }
-
-        testManagerAdded = true;
-        return;
-      }
-
       // 파일 업로드 액션 특별 처리
       if (action && action.isFileUpload) {
-        const selectorMatch = action.originalCode.match(/page\.setInputFiles\(['"]([^'"]+)['"]/);
-        const selector = selectorMatch ? selectorMatch[1] : action.selector;
-
         if (action.isOptional) {
           switch (action.conditionType) {
             case 'try-catch':
               optimizedLines.push(`  try {`);
-              optimizedLines.push(`    await uploadTestFile(page, '${selector}', {`);
-              optimizedLines.push(`      fileType: '${action.fileType}',`);
-              optimizedLines.push(`      fileName: '${action.fileName}',`);
-              optimizedLines.push(`      fileSize: '${action.fileSize}'`);
-              optimizedLines.push(`    }, { timeout: ${action.timeout} });`);
+              optimizedLines.push(`    // ${action.description} - uploadFileToPage로 변환됨`);
+              optimizedLines.push(`    await uploadFileToPage(page, '${action.fileType}', {`);
+              optimizedLines.push(`      filename: '${action.fileName}',`);
+              optimizedLines.push(`      extension: '${action.fileType === 'image' ? 'png' : action.fileType}'`);
+              optimizedLines.push(`    });`);
               optimizedLines.push(`  } catch (error) {`);
               optimizedLines.push(`    console.log('${action.description} - 파일 업로드를 건너뜁니다');`);
               optimizedLines.push(`  }`);
               break;
             default:
-              optimizedLines.push(`  await uploadTestFile(page, '${selector}', {`);
-              optimizedLines.push(`    fileType: '${action.fileType}',`);
-              optimizedLines.push(`    fileName: '${action.fileName}',`);
-              optimizedLines.push(`    fileSize: '${action.fileSize}'`);
-              optimizedLines.push(`  }, { timeout: ${action.timeout} });`);
+              optimizedLines.push(`  // ${action.description} - uploadFileToPage로 변환됨`);
+              optimizedLines.push(`  await uploadFileToPage(page, '${action.fileType}', {`);
+              optimizedLines.push(`    filename: '${action.fileName}',`);
+              optimizedLines.push(`    extension: '${action.fileType === 'image' ? 'png' : action.fileType}'`);
+              optimizedLines.push(`  });`);
           }
         } else {
           // 필수 파일 업로드
-          optimizedLines.push(`  // ${action.description} - TestFileManager로 변환됨`);
-          optimizedLines.push(`  await uploadTestFile(page, '${selector}', {`);
-          optimizedLines.push(`    fileType: '${action.fileType}',`);
-          optimizedLines.push(`    fileName: '${action.fileName}',`);
-          optimizedLines.push(`    fileSize: '${action.fileSize}'`);
+          optimizedLines.push(`  // ${action.description} - uploadFileToPage로 변환됨`);
+          optimizedLines.push(`  await uploadFileToPage(page, '${action.fileType}', {`);
+          optimizedLines.push(`    filename: '${action.fileName}',`);
+          optimizedLines.push(`    extension: '${action.fileType === 'image' ? 'png' : action.fileType}'`);
           optimizedLines.push(`  });`);
         }
         return;
@@ -730,19 +352,25 @@ async function uploadTestFile(page, selector, fileConfig, options = {}) {
         // 일반 조건적 처리로 변환
         switch (action.conditionType) {
           case 'try-catch':
-            // 사용자가 정밀 클릭을 선택한 경우에만 사용
-
             optimizedLines.push(`  try {`);
-            if (action.usePreciseClick && action.type === 'click') {
+            if ((action.useStableClick || action.usePreciseClick) && action.type === 'click') {
               // 버튼 텍스트 추출 (getByRole 패턴에서)
-              const buttonTextMatch = action.originalCode.match(/getByRole\(['"]button['"],\s*\{\s*name:\s*['"]([^'"]+)['"]/);
-              const buttonText = buttonTextMatch ? buttonTextMatch[1] : null;
-              if (buttonText) {
-                optimizedLines.push(`    // 사용자가 선택한 정밀한 "${buttonText}" 버튼 클릭`);
-                optimizedLines.push(`    await clickPreciseButton(page, '${buttonText}', { timeout: ${action.timeout} });`);
-              } else {
-                optimizedLines.push(`    ${line}`);
-              }
+              const roleMatch = action.originalCode.match(/getByRole\(['"]([^'"]+)['"],\s*\{\s*name:\s*['"]([^'"]+)['"]/);
+              const selectorType = roleMatch ? 'getByRole' : 'other';
+              const selectorValue = roleMatch ? roleMatch[1] : action.selector;
+              const name = roleMatch ? roleMatch[2] : null;
+
+              const config = {
+                useStableClick: action.useStableClick,
+                usePreciseClick: action.usePreciseClick,
+                maxRetries: action.maxAttempts || 3,
+                waitTime: action.timeout || 1000
+              };
+
+              // generateClickCode 함수 사용 (들여쓰기 추가)
+              const clickCode = generateClickCode(selectorType, selectorValue, name, config);
+              optimizedLines.push(`    // 사용자가 선택한 최적화된 클릭 방식`);
+              optimizedLines.push(`    ${clickCode}`);
             } else {
               optimizedLines.push(`    ${line}`);
             }
@@ -808,37 +436,34 @@ async function uploadTestFile(page, selector, fileConfig, options = {}) {
         }
       } else {
         // 일반 처리 (조건적이지 않은 경우)
-        if (action && action.type === 'click' && !action.isFileUpload && action.usePreciseClick) {
+        if (action && action.type === 'click' && !action.isFileUpload && (action.useStableClick || action.usePreciseClick)) {
           // 버튼 텍스트 추출 (getByRole 패턴에서)
-          const buttonTextMatch = action.originalCode.match(/getByRole\(['"]button['"],\s*\{\s*name:\s*['"]([^'"]+)['"]/);
-          const buttonText = buttonTextMatch ? buttonTextMatch[1] : null;
+          const roleMatch = action.originalCode.match(/getByRole\(['"]([^'"]+)['"],\s*\{\s*name:\s*['"]([^'"]+)['"]/);
+          const selectorType = roleMatch ? 'getByRole' : 'other';
+          const selectorValue = roleMatch ? roleMatch[1] : action.selector;
+          const name = roleMatch ? roleMatch[2] : null;
 
-          if (buttonText) {
-            optimizedLines.push(`  // 사용자가 선택한 정밀한 "${buttonText}" 버튼 클릭`);
-            optimizedLines.push(`  await clickPreciseButton(page, '${buttonText}');`);
-          } else {
-            optimizedLines.push(line);
-          }
+          const config = {
+            useStableClick: action.useStableClick,
+            usePreciseClick: action.usePreciseClick,
+            maxRetries: action.maxAttempts || 3,
+            waitTime: action.timeout || 1000
+          };
+
+          // generateClickCode 함수 사용
+          const clickCode = generateClickCode(selectorType, selectorValue, name, config);
+          optimizedLines.push(`  // 사용자가 선택한 최적화된 클릭 방식`);
+          optimizedLines.push(`  ${clickCode}`);
         } else {
           optimizedLines.push(line);
         }
       }
     });
 
-    // 테스트 종료 전에 TestFileManager 정리 코드 추가
-    if (hasFileUploads) {
-      const testEndIndex = optimizedLines.length - 1;
-      if (optimizedLines[testEndIndex]?.includes('});')) {
-        optimizedLines.splice(testEndIndex, 0, '');
-        optimizedLines.splice(testEndIndex, 0, '  // TestFileManager 정리');
-        optimizedLines.splice(testEndIndex, 0, '  if (globalFileManager) {');
-        optimizedLines.splice(testEndIndex + 1, 0, '    await globalFileManager.cleanup();');
-        optimizedLines.splice(testEndIndex + 2, 0, '  }');
-      }
-    }
+    // uploadFileToPage는 자체적으로 cleanup을 처리하므로 별도 정리 코드 불필요
 
-    // 헬퍼 함수들을 맨 아래에 추가
-    if (hasFileUploads || actions.some(a => a.isOptional)) {
+    // 헬퍼 함수들을 맨 아래에 추가 (중복 방지)
+    if ((hasFileUploads || hasStableClicks || actions.some(a => a.isOptional)) && !hasExistingHelperImport) {
       optimizedLines.push('');
       optimizedLines.push('// ==================== 헬퍼 함수들 ====================');
       optimizedLines.push(helperFunctions);
@@ -847,7 +472,7 @@ async function uploadTestFile(page, selector, fileConfig, options = {}) {
     const result = optimizedLines.join('\n');
     setOptimizedCode(result);
     onCodeChange?.(result);
-  }, [originalCode, actions, onCodeChange]);
+  }, [originalCode, actions, onCodeChange, generateClickCode]);
 
   // 액션 설정 업데이트
   const updateAction = (id: string, updates: Partial<PlaywrightAction>) => {
@@ -975,19 +600,55 @@ async function uploadTestFile(page, selector, fileConfig, options = {}) {
                                 }
                               />
                               <Label htmlFor={`optional-${action.id}`}>조건적 처리</Label>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-5 w-5 p-0"
+                                onClick={() => showHelp('conditionalProcessing')}
+                              >
+                                <HelpCircle className="h-3 w-3 text-muted-foreground" />
+                              </Button>
                             </div>
 
                             {action.type === 'click' && (
-                              <div className="flex items-center space-x-2">
-                                <Switch
-                                  id={`precise-click-${action.id}`}
-                                  checked={action.usePreciseClick || false}
-                                  onCheckedChange={(checked) =>
-                                    updateAction(action.id, { usePreciseClick: checked })
-                                  }
-                                />
-                                <Label htmlFor={`precise-click-${action.id}`}>정밀한 클릭</Label>
-                              </div>
+                              <>
+                                <div className="flex items-center space-x-2">
+                                  <Switch
+                                    id={`stable-click-${action.id}`}
+                                    checked={action.useStableClick || false}
+                                    onCheckedChange={(checked) =>
+                                      updateAction(action.id, { useStableClick: checked })
+                                    }
+                                  />
+                                  <Label htmlFor={`stable-click-${action.id}`}>안정적 클릭</Label>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-5 w-5 p-0"
+                                    onClick={() => showHelp('stableClick')}
+                                  >
+                                    <HelpCircle className="h-3 w-3 text-muted-foreground" />
+                                  </Button>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <Switch
+                                    id={`precise-click-${action.id}`}
+                                    checked={action.usePreciseClick || false}
+                                    onCheckedChange={(checked) =>
+                                      updateAction(action.id, { usePreciseClick: checked })
+                                    }
+                                  />
+                                  <Label htmlFor={`precise-click-${action.id}`}>정밀한 클릭</Label>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-5 w-5 p-0"
+                                    onClick={() => showHelp('preciseClick')}
+                                  >
+                                    <HelpCircle className="h-3 w-3 text-muted-foreground" />
+                                  </Button>
+                                </div>
+                              </>
                             )}
 
                             {action.isFileUpload && (
@@ -1003,7 +664,7 @@ async function uploadTestFile(page, selector, fileConfig, options = {}) {
                                   <Label>처리 방식</Label>
                                   <Select
                                     value={action.conditionType}
-                                    onValueChange={(value: any) =>
+                                    onValueChange={(value: PlaywrightAction['conditionType']) =>
                                       updateAction(action.id, { conditionType: value })
                                     }
                                   >
@@ -1067,7 +728,7 @@ async function uploadTestFile(page, selector, fileConfig, options = {}) {
                                       <Label>파일 타입</Label>
                                       <Select
                                         value={action.fileType || 'image'}
-                                        onValueChange={(value: any) =>
+                                        onValueChange={(value: PlaywrightAction['fileType']) =>
                                           updateAction(action.id, { fileType: value })
                                         }
                                       >
@@ -1106,7 +767,7 @@ async function uploadTestFile(page, selector, fileConfig, options = {}) {
                                       <Label>파일 크기</Label>
                                       <Select
                                         value={action.fileSize || 'small'}
-                                        onValueChange={(value: any) =>
+                                        onValueChange={(value: PlaywrightAction['fileSize']) =>
                                           updateAction(action.id, { fileSize: value })
                                         }
                                       >

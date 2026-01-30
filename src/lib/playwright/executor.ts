@@ -33,128 +33,98 @@ export class PlaywrightExecutor {
       // Process file upload paths in code
       let processedCode = code;
 
-      // Import TestFileManager if setInputFiles is used but not imported
-      if (code.includes('setInputFiles') && !code.includes('TestFileManager')) {
-        // Add require at the top with absolute path
-        const importLines = `
-const path = require('path');
-const helperPath = path.join(process.cwd(), 'temp', 'test-utils', 'file-helpers');
-console.log('시도할 파일 경로:', helperPath);
-const { TestFileManager } = require(helperPath);
+      // 선택적 최적화를 위한 특별한 주석 확인
+      const needsFileUpload = code.includes('setInputFiles') && !code.includes('uploadFileToPage') && code.includes('// 파일업로드최적화');
+      const needsStableClick = code.includes('getByRole(') && code.includes('.click()') && !code.includes('stableClickByRole') && code.includes('// 클릭최적화');
+
+      // Check if helper import already exists
+      const hasHelperImport = code.includes('file-helpers');
+      const hasUploadFunction = code.includes('uploadFileToPage');
+      const hasStableClick = code.includes('stableClickByRole');
+
+      if (needsFileUpload || needsStableClick) {
+        // Determine which functions need to be imported
+        const newImports = [];
+        if (needsFileUpload && !hasUploadFunction) newImports.push('uploadFileToPage');
+        if (needsStableClick && !hasStableClick) newImports.push('stableClickByRole');
+
+        if (newImports.length > 0) {
+          if (hasHelperImport) {
+            // Add to existing import
+            processedCode = processedCode.replace(
+              /const\s*{\s*([^}]+)\s*}\s*=\s*require\(['"][^'"]*file-helpers['"]\);/,
+              (match, existingImports) => {
+                const allImports = [...existingImports.split(',').map(i => i.trim()), ...newImports];
+                const uniqueImports = [...new Set(allImports)];
+                return `const { ${uniqueImports.join(', ')} } = require('./temp/test-utils/file-helpers');`;
+              }
+            );
+          } else {
+            // Add new import at the top (간단한 import만)
+            const importLines = `const { ${newImports.join(', ')} } = require('./temp/test-utils/file-helpers');
 `;
-        processedCode = importLines + processedCode;
-
-        // Add file manager setup in test
-        processedCode = processedCode.replace(
-          /test\(['"`]([^'"`]+)['"`],\s*async\s*\(\s*{\s*page\s*}\s*\)\s*=>\s*{/,
-          `test('$1', async ({ page }) => {
-  const fileManager = new TestFileManager();
-
-  try {`
-        );
-
-        // Add cleanup at the end
-        processedCode = processedCode.replace(/}\);$/, `  } finally {
-    await fileManager.cleanup();
-  }
-});`);
-
-        // Replace static file paths with dynamic file creation and fix selectors
-        processedCode = processedCode.replace(
-          /(await\s+page\..*?)\.setInputFiles\s*\(\s*['"`]([^'"`]+)['"`]\s*\)/g,
-          (match, selector, filePath) => {
-            const fileName = filePath.split('/').pop()?.split('.')[0] || 'test-file';
-            const extension = filePath.split('.').pop() || 'png';
-
-            // Create appropriate file based on extension
-            let fileCreationMethod = '';
-            if (['jpg', 'jpeg', 'png', 'gif', 'bmp'].includes(extension.toLowerCase())) {
-              fileCreationMethod = `await fileManager.createTestImage({ filename: '${fileName}', extension: '${extension}' })`;
-            } else if (extension.toLowerCase() === 'pdf') {
-              fileCreationMethod = `await fileManager.createTestPDF({ filename: '${fileName}' })`;
-            } else {
-              fileCreationMethod = `await fileManager.createTestTextFile({ filename: '${fileName}', extension: '${extension}' })`;
-            }
-
-            return `// 숨겨진 파일 input 자동 감지 및 업로드
-    const fileInputs = await page.locator('input[type="file"]').all();
-    const visibleFileInput = await fileInputs.find(async (input) => {
-      const isVisible = await input.isVisible();
-      return isVisible;
-    });
-
-    const hiddenFileInput = await fileInputs.find(async (input) => {
-      const isHidden = !(await input.isVisible());
-      return isHidden;
-    });
-
-    const targetInput = visibleFileInput || hiddenFileInput || fileInputs[0];
-    if (targetInput) {
-      // 파일 업로드 시도
-      await targetInput.setInputFiles(${fileCreationMethod});
-
-      // 파일 업로드 검증 및 재시도 로직
-      let uploadSuccess = false;
-      let retryCount = 0;
-      const maxRetries = 3;
-
-      while (!uploadSuccess && retryCount < maxRetries) {
-        // 파일이 제대로 들어갔는지 확인
-        const uploadedFiles = await targetInput.evaluate((input: HTMLInputElement) => {
-          return {
-            fileCount: input.files?.length || 0,
-            fileName: input.files?.[0]?.name || '',
-            fileSize: input.files?.[0]?.size || 0
-          };
-        });
-
-        console.log(\`업로드 시도 \${retryCount + 1}: 파일 수=\${uploadedFiles.fileCount}, 파일명=\${uploadedFiles.fileName}\`);
-
-        if (uploadedFiles.fileCount > 0) {
-          console.log('✅ 파일 업로드 성공!');
-          uploadSuccess = true;
-        } else {
-          console.warn(\`❌ 파일 업로드 실패 (시도 \${retryCount + 1}/\${maxRetries})\`);
-          retryCount++;
-
-          if (retryCount < maxRetries) {
-            // 잠시 대기 후 재시도
-            await page.waitForTimeout(500);
-            console.log('🔄 파일 업로드 재시도 중...');
-
-            // 다른 input 요소들도 시도해보기
-            if (retryCount === 1 && hiddenFileInput && targetInput !== hiddenFileInput) {
-              console.log('숨겨진 input으로 재시도...');
-              await hiddenFileInput.setInputFiles(${fileCreationMethod});
-              const retryResult = await hiddenFileInput.evaluate((input: HTMLInputElement) => input.files?.length || 0);
-              if (retryResult > 0) {
-                console.log('✅ 숨겨진 input으로 업로드 성공!');
-                uploadSuccess = true;
-              }
-            } else if (retryCount === 2 && visibleFileInput && targetInput !== visibleFileInput) {
-              console.log('보이는 input으로 재시도...');
-              await visibleFileInput.setInputFiles(${fileCreationMethod});
-              const retryResult = await visibleFileInput.evaluate((input: HTMLInputElement) => input.files?.length || 0);
-              if (retryResult > 0) {
-                console.log('✅ 보이는 input으로 업로드 성공!');
-                uploadSuccess = true;
-              }
-            } else {
-              // 동일한 input으로 재시도
-              await targetInput.setInputFiles(${fileCreationMethod});
-            }
+            processedCode = importLines + processedCode;
           }
         }
-      }
 
-      if (!uploadSuccess) {
-        console.error('❌ 모든 재시도 실패: 파일 업로드를 완료할 수 없습니다.');
-      }
-    } else {
-      console.warn('파일 input을 찾을 수 없습니다.');
-    }`;
+        // 파일업로드최적화 주석이 있는 라인만 변환
+        if (needsFileUpload) {
+          const lines = processedCode.split('\n');
+          for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            const nextLine = lines[i + 1];
+
+            // 현재 라인에 "파일업로드최적화" 주석이 있고, 다음 라인에 setInputFiles가 있는 경우
+            if (line.includes('// 파일업로드최적화') && nextLine && nextLine.includes('setInputFiles')) {
+              const match = nextLine.match(/(await\s+page\..*?)\.setInputFiles\s*\(\s*['"`]([^'"`]+)['"`]\s*\)/);
+              if (match) {
+                const [, selector, filePath] = match;
+                const fileName = filePath.split('/').pop()?.split('.')[0] || 'test-file';
+                const extension = filePath.split('.').pop() || 'png';
+
+                // 파일 타입 결정
+                let fileType = 'image';
+                if (extension.toLowerCase() === 'pdf') {
+                  fileType = 'pdf';
+                } else if (!['jpg', 'jpeg', 'png', 'gif', 'bmp'].includes(extension.toLowerCase())) {
+                  fileType = 'text';
+                }
+
+                lines[i + 1] = `  await uploadFileToPage(page, '${fileType}', { filename: '${fileName}', extension: '${extension}' });`;
+              }
+            }
           }
-        );
+          processedCode = lines.join('\n');
+        }
+
+        // 클릭최적화 주석이 있는 라인만 변환
+        if (needsStableClick) {
+          const lines = processedCode.split('\n');
+          for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            const nextLine = lines[i + 1];
+
+            // 현재 라인에 "클릭최적화" 주석이 있고, 다음 라인에 getByRole().click()가 있는 경우
+            if (line.includes('// 클릭최적화') && nextLine && nextLine.includes('getByRole(') && nextLine.includes('.click()')) {
+              // name 옵션이 있는 경우
+              let match = nextLine.match(/await\s+page\.getByRole\s*\(\s*['"`]([^'"`]+)['"`]\s*,\s*{\s*name:\s*['"`]([^'"`]+)['"`]\s*}\s*\)\.click\s*\(\s*\)/);
+              if (match) {
+                const [, role, name] = match;
+                const indent = nextLine.match(/^(\s*)/)[1];
+                lines[i + 1] = `${indent}await stableClickByRole(page, '${role}', { name: '${name}' });`;
+              } else {
+                // name 옵션이 없는 경우
+                match = nextLine.match(/await\s+page\.getByRole\s*\(\s*['"`]([^'"`]+)['"`]\s*\)\.click\s*\(\s*\)/);
+                if (match) {
+                  const [, role] = match;
+                  const indent = nextLine.match(/^(\s*)/)[1];
+                  lines[i + 1] = `${indent}await stableClickByRole(page, '${role}');`;
+                }
+              }
+            }
+          }
+          processedCode = lines.join('\n');
+        }
       }
 
       // Write the processed test code to a temporary file
