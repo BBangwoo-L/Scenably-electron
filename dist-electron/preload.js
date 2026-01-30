@@ -1,0 +1,7 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+var electron_1 = require("electron");
+var electronAPI = {
+// 나중에 필요한 API들을 여기에 추가할 예정
+};
+electron_1.contextBridge.exposeInMainWorld('electronAPI', electronAPI);
