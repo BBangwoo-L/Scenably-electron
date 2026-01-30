@@ -17,9 +17,7 @@ function createWindow(): void {
     show: false,
   });
 
-  const startUrl = isDevelopment
-    ? 'http://localhost:3000'
-    : `file://${join(__dirname, '../out/index.html')}`;
+  const startUrl = 'http://localhost:3000';
 
   mainWindow.loadURL(startUrl);
 

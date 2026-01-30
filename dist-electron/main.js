@@ -15,9 +15,7 @@ function createWindow() {
         },
         show: false,
     });
-    var startUrl = isDevelopment
-        ? 'http://localhost:3000'
-        : "file://".concat((0, path_1.join)(__dirname, '../out/index.html'));
+    var startUrl = 'http://localhost:3000';
     mainWindow.loadURL(startUrl);
     mainWindow.once('ready-to-show', function () {
         mainWindow === null || mainWindow === void 0 ? void 0 : mainWindow.show();
