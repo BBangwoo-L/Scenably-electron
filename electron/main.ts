@@ -2,6 +2,7 @@ import { app, BrowserWindow } from 'electron';
 import { join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { initializeDatabase } from './database';
+import { setupAllHandlers } from './ipc-handlers';
 
 // 로컬 데이터베이스 설정
 async function setupDatabase() {
@@ -63,6 +64,10 @@ app.whenReady().then(async () => {
   try {
     // 데이터베이스 설정을 가장 먼저 실행
     await setupDatabase();
+
+    // IPC 핸들러 설정
+    setupAllHandlers();
+
     createWindow();
   } catch (error) {
     console.error('앱 초기화 실패:', error);

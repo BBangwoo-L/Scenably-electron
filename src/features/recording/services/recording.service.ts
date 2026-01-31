@@ -1,13 +1,12 @@
-import { apiClient } from '@/shared/lib';
-import { RECORDING_API_ENDPOINTS } from '../../scenarios/lib';
+import { unifiedApiClient } from '@/shared/lib/electron-api-client';
 import type { StartRecordingData, StartRecordingResult, StopRecordingData, StopRecordingResult } from '../lib';
 
 export class RecordingService {
   static async start(data: StartRecordingData): Promise<StartRecordingResult> {
-    return apiClient.post<StartRecordingResult>(RECORDING_API_ENDPOINTS.RECORDING_START, data);
+    return unifiedApiClient.startRecording(data.url);
   }
 
   static async stop(data: StopRecordingData): Promise<StopRecordingResult> {
-    return apiClient.post<StopRecordingResult>(RECORDING_API_ENDPOINTS.RECORDING_STOP, data);
+    return unifiedApiClient.stopRecording(data.sessionId);
   }
 }

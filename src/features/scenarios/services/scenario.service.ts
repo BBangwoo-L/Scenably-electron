@@ -1,34 +1,33 @@
-import { apiClient } from '@/shared/lib';
-import { SCENARIO_API_ENDPOINTS } from '../lib';
+import { unifiedApiClient } from '@/shared/lib/electron-api-client';
 import type { Scenario, CreateScenarioData, UpdateScenarioData, ExecutionResult } from '../lib';
 
 export class ScenarioService {
   static async getAll(): Promise<Scenario[]> {
-    return apiClient.get<Scenario[]>(SCENARIO_API_ENDPOINTS.SCENARIOS);
+    return unifiedApiClient.getScenarios();
   }
 
   static async getById(id: string): Promise<Scenario> {
-    return apiClient.get<Scenario>(SCENARIO_API_ENDPOINTS.SCENARIO_BY_ID(id));
+    return unifiedApiClient.getScenarioById(id);
   }
 
   static async create(data: CreateScenarioData): Promise<Scenario> {
-    return apiClient.post<Scenario>(SCENARIO_API_ENDPOINTS.SCENARIOS, data);
+    return unifiedApiClient.createScenario(data);
   }
 
   static async update(data: UpdateScenarioData): Promise<Scenario> {
     const { id, ...updateData } = data;
-    return apiClient.put<Scenario>(SCENARIO_API_ENDPOINTS.SCENARIO_BY_ID(id), updateData);
+    return unifiedApiClient.updateScenario(id, updateData);
   }
 
   static async delete(id: string): Promise<void> {
-    return apiClient.delete<void>(SCENARIO_API_ENDPOINTS.SCENARIO_BY_ID(id));
+    await unifiedApiClient.deleteScenario(id);
   }
 
-  static async execute(id: string): Promise<ExecutionResult> {
-    return apiClient.post<ExecutionResult>(SCENARIO_API_ENDPOINTS.SCENARIO_EXECUTE(id));
+  static async execute(id: string, code: string): Promise<ExecutionResult> {
+    return unifiedApiClient.executeScenario(id, code);
   }
 
-  static async debug(id: string): Promise<{ sessionId: string }> {
-    return apiClient.post<{ sessionId: string }>(SCENARIO_API_ENDPOINTS.SCENARIO_DEBUG(id));
+  static async debug(code: string): Promise<{ sessionId: string }> {
+    return unifiedApiClient.debugScenario(code);
   }
 }
