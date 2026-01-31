@@ -75,14 +75,10 @@
     "files": [
       "dist-electron/**/*",
       ".next/**/*",
-      "src/**/*",
       "prisma/**/*",
       "node_modules/@prisma/**/*",
       "node_modules/.prisma/**/*",
-      "node_modules/playwright/**/*",
-      "!node_modules/.cache/**/*",
-      "!src/**/*.test.*",
-      "!src/**/*.spec.*"
+      "!node_modules/.cache/**/*"
     ],
     "extraResources": [
       {
