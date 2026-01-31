@@ -4,7 +4,7 @@ const electron_1 = require("electron");
 const path_1 = require("path");
 const fs_1 = require("fs");
 const database_1 = require("./database");
-const ipc_handlers_1 = require("./ipc-handlers");
+const ipc_handlers_standalone_1 = require("./ipc-handlers-standalone");
 // 로컬 데이터베이스 설정
 async function setupDatabase() {
     const userDataPath = electron_1.app.getPath('userData');
@@ -51,7 +51,7 @@ electron_1.app.whenReady().then(async () => {
         // 데이터베이스 설정을 가장 먼저 실행
         await setupDatabase();
         // IPC 핸들러 설정
-        (0, ipc_handlers_1.setupAllHandlers)();
+        (0, ipc_handlers_standalone_1.setupStandaloneHandlers)();
         createWindow();
     }
     catch (error) {
