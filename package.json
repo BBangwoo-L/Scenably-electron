@@ -78,13 +78,23 @@
       "prisma/**/*",
       "node_modules/@prisma/**/*",
       "node_modules/.prisma/**/*",
+      "node_modules/prisma/**/*",
       "!node_modules/.cache/**/*"
     ],
     "extraResources": [
       {
         "from": "prisma",
         "to": "prisma"
+      },
+      {
+        "from": "node_modules/.prisma",
+        "to": "node_modules/.prisma"
       }
+    ],
+    "asarUnpack": [
+      "node_modules/@prisma/**/*",
+      "node_modules/.prisma/**/*",
+      "node_modules/prisma/**/*"
     ],
     "mac": {
       "category": "public.app-category.developer-tools",

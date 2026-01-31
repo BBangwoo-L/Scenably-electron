@@ -48,6 +48,19 @@ function createWindow() {
 }
 electron_1.app.whenReady().then(async () => {
     try {
+        // Prisma 환경 설정 (패키징된 앱에서 필요)
+        if (electron_1.app.isPackaged) {
+            // 패키징된 환경에서 Prisma 경로 설정
+            const resourcesPath = process.resourcesPath;
+            const prismaPath = (0, path_1.join)(resourcesPath, 'node_modules', '.prisma');
+            console.log('Prisma 경로 설정:', prismaPath);
+            // Windows 환경에 맞는 바이너리 설정
+            if (process.platform === 'win32') {
+                process.env.PRISMA_QUERY_ENGINE_LIBRARY = (0, path_1.join)(prismaPath, 'client', 'libquery_engine-windows.dll.node');
+                process.env.PRISMA_SCHEMA_ENGINE_BINARY = (0, path_1.join)(prismaPath, 'client', 'schema-engine-windows.exe');
+                process.env.PRISMA_QUERY_ENGINE_BINARY = (0, path_1.join)(prismaPath, 'client', 'query-engine-windows.exe');
+            }
+        }
         // 데이터베이스 설정을 가장 먼저 실행
         await setupDatabase();
         // IPC 핸들러 설정
