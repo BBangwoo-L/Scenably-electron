@@ -2,7 +2,7 @@ import { app, BrowserWindow } from 'electron';
 import { join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { initializeDatabase } from './database';
-import { setupAllHandlers } from './ipc-handlers';
+import { setupSimpleHandlers } from './ipc-handlers-simple';
 
 // 로컬 데이터베이스 설정
 async function setupDatabase() {
@@ -66,7 +66,7 @@ app.whenReady().then(async () => {
     await setupDatabase();
 
     // IPC 핸들러 설정
-    setupAllHandlers();
+    setupSimpleHandlers();
 
     createWindow();
   } catch (error) {
