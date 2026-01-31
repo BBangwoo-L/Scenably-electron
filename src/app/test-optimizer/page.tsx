@@ -1,12 +1,13 @@
 'use client';
 
-import { useSearchParams, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useEffect, useState, Suspense } from 'react';
 import { PlaywrightCodeOptimizer } from '@/features/scenarios/components/playwright-code-optimizer';
 import { Button } from '@/shared/ui/button';
 import { ArrowLeft, Loader2 } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
 
-export default function TestOptimizerPage() {
+function TestOptimizerContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -158,5 +159,17 @@ export default function TestOptimizerPage() {
         />
       </div>
     </div>
+  );
+}
+
+export default function TestOptimizerPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    }>
+      <TestOptimizerContent />
+    </Suspense>
   );
 }
