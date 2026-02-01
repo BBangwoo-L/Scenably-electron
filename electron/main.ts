@@ -67,8 +67,27 @@ app.whenReady().then(async () => {
       // 패키징된 환경에서 Prisma 경로 설정
       const resourcesPath = process.resourcesPath;
       const prismaPath = join(resourcesPath, 'node_modules', '.prisma');
+      const prismaClientPath = join(resourcesPath, 'app.asar.unpacked', 'node_modules', '@prisma', 'client');
 
-      console.log('Prisma 경로 설정:', prismaPath);
+      console.log('Prisma 경로 설정:', {
+        resourcesPath,
+        prismaPath,
+        prismaClientPath
+      });
+
+      // Node.js 모듈 경로에 Prisma 클라이언트 추가
+      const Module = require('module');
+      const originalResolveFilename = Module._resolveFilename;
+
+      Module._resolveFilename = function(request: string, parent: any, isMain: boolean, options?: any) {
+        // @prisma/client 요청을 올바른 경로로 리디렉션
+        if (request === '@prisma/client' || request.startsWith('@prisma/client/')) {
+          const targetPath = request.replace('@prisma/client', prismaClientPath);
+          console.log(`Prisma 모듈 리디렉션: ${request} -> ${targetPath}`);
+          return originalResolveFilename.call(this, targetPath, parent, isMain, options);
+        }
+        return originalResolveFilename.call(this, request, parent, isMain, options);
+      };
 
       // Windows 환경에 맞는 바이너리 설정
       if (process.platform === 'win32') {

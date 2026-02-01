@@ -1,5 +1,6 @@
-import { ipcMain } from 'electron';
+import { ipcMain, app } from 'electron';
 import { PrismaClient } from '@prisma/client';
+import { join } from 'path';
 
 // 완전 독립적인 IPC 핸들러 (외부 모듈 의존성 없음)
 export function setupStandaloneHandlers() {
@@ -10,9 +11,29 @@ export function setupStandaloneHandlers() {
 
   const getPrisma = () => {
     if (!prisma) {
-      prisma = new PrismaClient({
+      // 패키징된 환경에서 Prisma 경로 설정
+      const config: any = {
         log: ['error', 'warn'],
-      });
+      };
+
+      // 개발 환경이 아닌 패키징된 환경에서 실행될 때
+      if (app.isPackaged) {
+        const resourcesPath = process.resourcesPath;
+        // Prisma 클라이언트 경로를 명시적으로 설정
+        config.__internal = {
+          engine: {
+            // 엔진 바이너리 경로 설정
+            binaryPath: join(resourcesPath, 'node_modules', '.prisma', 'client'),
+          }
+        };
+
+        console.log('패키징된 환경에서 Prisma 설정:', {
+          resourcesPath,
+          clientPath: join(resourcesPath, 'node_modules', '.prisma', 'client')
+        });
+      }
+
+      prisma = new PrismaClient(config);
     }
     return prisma;
   };
