@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   distDir: '.next',
+  output: 'export',  // 정적 export로 다시 설정
   images: {
     unoptimized: true,
   },
