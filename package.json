@@ -8,9 +8,6 @@
     "build": "next build --turbopack",
     "start": "next start",
     "lint": "eslint",
-    "db:generate": "prisma generate",
-    "db:push": "prisma db push",
-    "db:migrate": "prisma migrate dev",
     "test:e2e": "playwright test",
     "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:3000 && npm run build:electron && electron dist-electron/main.js\"",
     "electron:pack": "npm run build && npm run build:electron && electron-builder",
@@ -23,7 +20,6 @@
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
     "@playwright/test": "^1.55.0",
-    "@prisma/client": "^6.16.2",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-avatar": "^1.1.10",
     "@radix-ui/react-dialog": "^1.1.15",
@@ -33,13 +29,13 @@
     "@radix-ui/react-slot": "^1.2.3",
     "@radix-ui/react-switch": "^1.2.6",
     "@radix-ui/react-tabs": "^1.1.13",
+    "better-sqlite3": "^12.6.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.544.0",
     "next": "15.5.3",
     "next-themes": "^0.4.6",
     "playwright": "1.55.1",
-    "prisma": "^6.16.2",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-hook-form": "^7.62.0",
@@ -51,6 +47,7 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
+    "@types/better-sqlite3": "^7.6.13",
     "@types/electron-devtools-installer": "^4.0.0",
     "@types/node": "^20",
     "@types/react": "^19",
@@ -75,33 +72,17 @@
     "files": [
       "dist-electron/**/*",
       ".next/**/*",
-      "prisma/**/*",
-      "node_modules/@prisma/**/*",
-      "node_modules/.prisma/**/*",
-      "node_modules/prisma/**/*",
       "!node_modules/.cache/**/*"
-    ],
-    "extraResources": [
-      {
-        "from": "prisma",
-        "to": "prisma"
-      },
-      {
-        "from": "node_modules/.prisma",
-        "to": "node_modules/.prisma"
-      }
-    ],
-    "asarUnpack": [
-      "node_modules/@prisma/**/*",
-      "node_modules/.prisma/**/*",
-      "node_modules/prisma/**/*"
     ],
     "mac": {
       "category": "public.app-category.developer-tools",
       "target": [
         {
           "target": "dmg",
-          "arch": ["x64", "arm64"]
+          "arch": [
+            "x64",
+            "arm64"
+          ]
         }
       ]
     },
@@ -109,7 +90,9 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "assets/icon.ico"
@@ -118,7 +101,9 @@
       "target": [
         {
           "target": "AppImage",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "category": "Development"

@@ -1,63 +1,16 @@
-import { ipcMain, app } from 'electron';
-import { PrismaClient } from '@prisma/client';
-import { join } from 'path';
+import { ipcMain } from 'electron';
+import { getDatabase } from './database-sqlite';
 
-// 완전 독립적인 IPC 핸들러 (외부 모듈 의존성 없음)
-export function setupStandaloneHandlers() {
-  console.log('독립적인 IPC 핸들러 설정 중...');
+// 간단하고 깔끔한 IPC 핸들러 (SQLite 기반)
+export function setupSQLiteHandlers() {
+  console.log('SQLite IPC 핸들러 설정 중...');
 
-  // Prisma 클라이언트 직접 생성
-  let prisma: PrismaClient | null = null;
-
-  const getPrisma = () => {
-    if (!prisma) {
-      // 패키징된 환경에서 Prisma 경로 설정
-      const config: any = {
-        log: ['error', 'warn'],
-      };
-
-      // 개발 환경이 아닌 패키징된 환경에서 실행될 때
-      if (app.isPackaged) {
-        const resourcesPath = process.resourcesPath;
-        // Prisma 클라이언트 경로를 명시적으로 설정
-        config.__internal = {
-          engine: {
-            // 엔진 바이너리 경로 설정
-            binaryPath: join(resourcesPath, 'node_modules', '.prisma', 'client'),
-          }
-        };
-
-        console.log('패키징된 환경에서 Prisma 설정:', {
-          resourcesPath,
-          clientPath: join(resourcesPath, 'node_modules', '.prisma', 'client')
-        });
-      }
-
-      prisma = new PrismaClient(config);
-    }
-    return prisma;
-  };
-
-  // 앱 종료 시 Prisma 연결 해제
-  process.on('beforeExit', async () => {
-    if (prisma) {
-      await prisma.$disconnect();
-    }
-  });
+  const db = getDatabase();
 
   // 시나리오 관련 핸들러
   ipcMain.handle('scenarios:getAll', async () => {
     try {
-      const db = getPrisma();
-      const scenarios = await db.scenario.findMany({
-        include: {
-          executions: {
-            orderBy: { startedAt: 'desc' },
-            take: 5
-          }
-        },
-        orderBy: { createdAt: 'desc' }
-      });
+      const scenarios = db.findAllScenarios();
       return { success: true, data: scenarios };
     } catch (error) {
       console.error('시나리오 목록 조회 실패:', error);
@@ -67,7 +20,6 @@ export function setupStandaloneHandlers() {
 
   ipcMain.handle('scenarios:create', async (_, data) => {
     try {
-      const db = getPrisma();
       const { name, description, targetUrl, code } = data;
 
       if (!name?.trim() || !targetUrl?.trim() || !code?.trim()) {
@@ -77,13 +29,11 @@ export function setupStandaloneHandlers() {
         };
       }
 
-      const scenario = await db.scenario.create({
-        data: {
-          name: name.trim(),
-          description: description?.trim() || null,
-          targetUrl: targetUrl.trim(),
-          code: code.trim()
-        }
+      const scenario = db.createScenario({
+        name: name.trim(),
+        description: description?.trim() || null,
+        targetUrl: targetUrl.trim(),
+        code: code.trim()
       });
 
       return { success: true, data: scenario };
@@ -95,20 +45,11 @@ export function setupStandaloneHandlers() {
 
   ipcMain.handle('scenarios:getById', async (_, id: string) => {
     try {
-      const db = getPrisma();
-
       if (!id) {
         return { success: false, error: '시나리오 ID가 필요합니다.' };
       }
 
-      const scenario = await db.scenario.findUnique({
-        where: { id },
-        include: {
-          executions: {
-            orderBy: { startedAt: 'desc' }
-          }
-        }
-      });
+      const scenario = db.findScenarioById(id);
 
       if (!scenario) {
         return { success: false, error: '시나리오를 찾을 수 없습니다.' };
@@ -123,8 +64,6 @@ export function setupStandaloneHandlers() {
 
   ipcMain.handle('scenarios:update', async (_, { id, data }) => {
     try {
-      const db = getPrisma();
-
       if (!id) {
         return { success: false, error: '시나리오 ID가 필요합니다.' };
       }
@@ -136,10 +75,11 @@ export function setupStandaloneHandlers() {
       if (data.targetUrl?.trim()) updateData.targetUrl = data.targetUrl.trim();
       if (data.code?.trim()) updateData.code = data.code.trim();
 
-      const scenario = await db.scenario.update({
-        where: { id },
-        data: updateData
-      });
+      const scenario = db.updateScenario(id, updateData);
+
+      if (!scenario) {
+        return { success: false, error: '시나리오를 찾을 수 없습니다.' };
+      }
 
       return { success: true, data: scenario };
     } catch (error) {
@@ -150,13 +90,16 @@ export function setupStandaloneHandlers() {
 
   ipcMain.handle('scenarios:delete', async (_, id: string) => {
     try {
-      const db = getPrisma();
-
       if (!id) {
         return { success: false, error: '시나리오 ID가 필요합니다.' };
       }
 
-      await db.scenario.delete({ where: { id } });
+      const deleted = db.deleteScenario(id);
+
+      if (!deleted) {
+        return { success: false, error: '시나리오를 찾을 수 없습니다.' };
+      }
+
       return { success: true, data: { deletedId: id } };
     } catch (error) {
       console.error('시나리오 삭제 실패:', error);
@@ -167,28 +110,23 @@ export function setupStandaloneHandlers() {
   // 시나리오 실행 (데모 구현)
   ipcMain.handle('scenarios:execute', async (_, { id, code }) => {
     try {
-      const db = getPrisma();
-
       // 실행 기록 생성
-      const execution = await db.execution.create({
-        data: {
-          scenarioId: id,
-          status: 'SUCCESS',
-          result: JSON.stringify({
-            success: true,
-            message: 'Playwright 테스트가 성공적으로 완료되었습니다.',
-            duration: '2.3초',
-            steps: ['페이지 로드', '요소 찾기', '클릭 실행', '결과 검증'],
-            timestamp: new Date().toISOString()
-          }),
-          startedAt: new Date(),
-          completedAt: new Date()
-        }
+      const execution = db.createExecution({
+        scenarioId: id,
+        status: 'SUCCESS',
+        result: JSON.stringify({
+          success: true,
+          message: 'Playwright 테스트가 성공적으로 완료되었습니다.',
+          duration: '2.3초',
+          steps: ['페이지 로드', '요소 찾기', '클릭 실행', '결과 검증'],
+          timestamp: new Date().toISOString()
+        }),
+        completedAt: new Date().toISOString()
       });
 
       const result = {
         success: true,
-        output: 'Playwright 테스트가 성공적으로 실행되었습니다.\n\n단계:\n1. 페이지 로드 완료\n2. 요소 찾기 성공\n3. 액션 실행 완료\n4. 결과 검증 성공',
+        output: 'Playwright 테스트가 성공적으로 실행되었습니다.\\n\\n단계:\\n1. 페이지 로드 완료\\n2. 요소 찾기 성공\\n3. 액션 실행 완료\\n4. 결과 검증 성공',
         screenshots: [],
         executionId: execution.id
       };
@@ -288,7 +226,7 @@ ${code}
         success: true,
         data: {
           modifiedCode,
-          explanation: `코드가 다음과 같이 개선되었습니다:\n\n1. ${instruction}\n2. 에러 처리 로직 추가\n3. 성능 최적화\n4. 가독성 향상\n\n(현재는 데모 모드입니다)`
+          explanation: `코드가 다음과 같이 개선되었습니다:\\n\\n1. ${instruction}\\n2. 에러 처리 로직 추가\\n3. 성능 최적화\\n4. 가독성 향상\\n\\n(현재는 데모 모드입니다)`
         }
       };
     } catch (error) {
@@ -297,5 +235,5 @@ ${code}
     }
   });
 
-  console.log('독립적인 IPC 핸들러 설정 완료');
+  console.log('SQLite IPC 핸들러 설정 완료');
 }
