@@ -32,6 +32,29 @@ function createWindow() {
         const htmlPath = (0, path_1.join)(__dirname, '../.next/server/app/index.html');
         console.log('HTML 파일 로드:', htmlPath);
         mainWindow.loadFile(htmlPath);
+        // 클라이언트 사이드 라우팅을 위한 핸들러
+        mainWindow.webContents.on('will-navigate', (event, url) => {
+            event.preventDefault();
+            // URL이 같은 도메인이고 라우팅 경로인 경우
+            if (url.includes('/scenario/')) {
+                if (url.includes('/scenario/new')) {
+                    const newScenarioPath = (0, path_1.join)(__dirname, '../.next/server/app/scenario/new.html');
+                    mainWindow?.loadFile(newScenarioPath);
+                }
+                else if (url.includes('/scenario/edit/')) {
+                    const editScenarioPath = (0, path_1.join)(__dirname, '../.next/server/app/scenario/edit/id.html');
+                    mainWindow?.loadFile(editScenarioPath);
+                }
+            }
+            else if (url.includes('/test-optimizer')) {
+                const optimizerPath = (0, path_1.join)(__dirname, '../.next/server/app/test-optimizer.html');
+                mainWindow?.loadFile(optimizerPath);
+            }
+            else {
+                // 기본 홈페이지로 이동
+                mainWindow?.loadFile(htmlPath);
+            }
+        });
     }
     mainWindow.once('ready-to-show', () => {
         mainWindow?.show();

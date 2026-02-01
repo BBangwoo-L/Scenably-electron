@@ -2,7 +2,8 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   distDir: '.next',
-  output: 'export',  // 정적 export로 다시 설정
+  output: 'export',  // 정적 export로 설정
+  assetPrefix: './',  // Electron용 상대 경로 설정
   images: {
     unoptimized: true,
   },
