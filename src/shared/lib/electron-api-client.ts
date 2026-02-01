@@ -1,5 +1,7 @@
 // Electron 환경 감지
-const isElectron = typeof window !== 'undefined' && window.electronAPI;
+const isElectron = typeof window !== 'undefined' &&
+  typeof window.electronAPI !== 'undefined' &&
+  window.electronAPI !== null;
 
 interface APIResponse<T = any> {
   success: boolean;
