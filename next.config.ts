@@ -11,6 +11,7 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  trailingSlash: true,  // Electron에서 필요
 };
 
 export default nextConfig;

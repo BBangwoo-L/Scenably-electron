@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
+
 import { Button, Card, CardContent, CardHeader, CardTitle, Input, Label, Textarea } from "@/shared/ui";
 import { EnhancedCodePreview, FullscreenCodeEditor } from "@/features/scenarios/components";
 import { ArrowLeft, Save, Play, Wand2, Settings } from "lucide-react";
@@ -314,3 +315,4 @@ export default function EditScenarioPage() {
     </div>
   );
 }
+
