@@ -44,7 +44,15 @@ export function useScenarioActions() {
       setIsLoading(true);
       setError(null);
 
-      const result = await ScenarioService.debug(scenarioId);
+      // 시나리오 ID로 실제 코드를 먼저 가져옴
+      const scenario = await ScenarioService.getById(scenarioId);
+
+      if (!scenario.code) {
+        throw new Error('시나리오에 코드가 없습니다.');
+      }
+
+      // 가져온 코드로 디버그 실행
+      const result = await ScenarioService.debug(scenario.code);
       return result;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Failed to start debug mode";

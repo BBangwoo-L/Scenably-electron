@@ -1,13 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import type { CreateScenarioData } from '../lib';
 import { ScenarioService, AIService } from '../services';
+import { normalizeCodeForSaving } from '../utils/codeConverter';
 
 export interface ScenarioData extends CreateScenarioData {
   id?: string;
 }
 
-export function useScenarioBuilder(initialData?: Partial<ScenarioData>) {
+export function useScenarioBuilder(initialData?: Partial<ScenarioData>, scenarioId?: string) {
   const navigate = useNavigate();
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
@@ -40,6 +41,34 @@ test('E2E Test for ${targetUrl}', async ({ page }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // 편집 모드일 때 시나리오 데이터 로드
+  useEffect(() => {
+    const loadScenario = async () => {
+      if (!scenarioId) return;
+
+      try {
+        setIsLoading(true);
+        setError(null);
+        const scenario = await ScenarioService.getById(scenarioId);
+        setScenarioData({
+          id: scenario.id,
+          name: scenario.name,
+          description: scenario.description || "",
+          targetUrl: scenario.targetUrl,
+          code: scenario.code
+        });
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : "시나리오 로드에 실패했습니다";
+        setError(errorMessage);
+        console.error("Failed to load scenario:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadScenario();
+  }, [scenarioId]);
+
   const updateScenarioData = (updates: Partial<ScenarioData>) => {
     setScenarioData(prev => ({ ...prev, ...updates }));
   };
@@ -53,14 +82,30 @@ test('E2E Test for ${targetUrl}', async ({ page }) => {
       setIsLoading(true);
       setError(null);
 
+      console.log('💾 saveScenario called with code:', scenarioData.code.substring(0, 100) + '...');
+
+      // 저장 전 코드를 정규화 (Codegen → Test 형태로 자동 변환)
+      const normalizedCode = normalizeCodeForSaving(scenarioData.code);
+      const dataToSave = {
+        ...scenarioData,
+        code: normalizedCode
+      };
+
+      console.log('💾 Data to save:', dataToSave.code.substring(0, 100) + '...');
+
       let result;
       if (scenarioData.id) {
-        result = await ScenarioService.update(scenarioData as any);
+        result = await ScenarioService.update(dataToSave as any);
       } else {
-        result = await ScenarioService.create(scenarioData);
+        result = await ScenarioService.create(dataToSave);
       }
 
-      setScenarioData(prev => ({ ...prev, id: result.id }));
+      // UI 상태도 변환된 코드로 업데이트
+      setScenarioData(prev => ({
+        ...prev,
+        id: result.id,
+        code: normalizedCode
+      }));
       return result;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Failed to save scenario";

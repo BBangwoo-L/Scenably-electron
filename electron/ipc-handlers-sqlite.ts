@@ -1,5 +1,7 @@
 import { ipcMain } from 'electron';
 import { getDatabase } from './database-sqlite';
+import { ElectronPlaywrightRecorder } from './playwright-electron-recorder';
+import { ElectronPlaywrightDebugger } from './playwright-electron-debug';
 
 // 간단하고 깔끔한 IPC 핸들러 (SQLite 기반)
 export function setupSQLiteHandlers() {
@@ -138,73 +140,67 @@ export function setupSQLiteHandlers() {
     }
   });
 
-  // 시나리오 디버그
+  // 시나리오 디버그 (실제 Playwright 실행)
   ipcMain.handle('scenarios:debug', async (_, { code }) => {
     try {
       const sessionId = `debug-${Date.now()}`;
+      console.log(`디버그 시작: ${sessionId}`);
+
+      const result = await ElectronPlaywrightDebugger.startDebugSession(code, sessionId);
+
       return {
         success: true,
         data: {
-          sessionId,
-          message: '디버그 세션이 시작되었습니다. (데모 모드)'
+          sessionId: result.sessionId,
+          message: result.message
         }
       };
     } catch (error) {
       console.error('시나리오 디버그 실패:', error);
-      return { success: false, error: '디버그 세션을 시작할 수 없습니다.' };
+      return { success: false, error: error instanceof Error ? error.message : '디버그 세션을 시작할 수 없습니다.' };
     }
   });
 
-  // 레코딩 관련 핸들러 (데모 구현)
+  // 레코딩 관련 핸들러 (실제 Playwright Recorder 사용)
   ipcMain.handle('recording:start', async (_, { url }) => {
     try {
       const sessionId = `recording-${Date.now()}`;
-      console.log(`레코딩 시작 (데모): ${url}`);
+      console.log(`레코딩 시작: ${url}`);
+
+      const result = await ElectronPlaywrightRecorder.startRecording(url, sessionId);
 
       return {
         success: true,
         data: {
-          sessionId,
+          sessionId: result.sessionId,
           url,
           status: 'recording',
-          message: '레코딩이 시작되었습니다. (데모 모드)'
+          message: result.message
         }
       };
     } catch (error) {
       console.error('레코딩 시작 실패:', error);
-      return { success: false, error: '레코딩을 시작할 수 없습니다.' };
+      return { success: false, error: error instanceof Error ? error.message : '레코딩을 시작할 수 없습니다.' };
     }
   });
 
   ipcMain.handle('recording:stop', async (_, { sessionId }) => {
     try {
-      const demoCode = `import { test, expect } from '@playwright/test';
+      console.log(`레코딩 중지: ${sessionId}`);
 
-test('자동 생성된 테스트', async ({ page }) => {
-  // 페이지로 이동
-  await page.goto('https://example.com');
-
-  // 요소 클릭
-  await page.click('#button');
-
-  // 텍스트 입력
-  await page.fill('#input', '테스트 텍스트');
-
-  // 결과 검증
-  await expect(page).toHaveTitle('예상 제목');
-});`;
+      const result = await ElectronPlaywrightRecorder.stopRecording(sessionId);
 
       return {
         success: true,
         data: {
           sessionId,
-          code: demoCode,
-          message: '레코딩이 완료되었습니다. (데모 모드)'
+          code: result.code,
+          message: result.message
         }
       };
     } catch (error) {
       console.error('레코딩 중지 실패:', error);
-      return { success: false, error: '레코딩을 중지할 수 없습니다.' };
+      return { success: false, error: error instanceof Error ? error.message : '레코딩을 중지할 수 없습니다.' };
     }
   });
 

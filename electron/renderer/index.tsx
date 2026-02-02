@@ -4,6 +4,7 @@ import { HashRouter as Router, Routes, Route } from 'react-router-dom';
 import { Header } from '../../src/features/layout';
 import HomePage from '../../src/app/page';
 import ScenarioBuilderPage from '../../src/app/scenario/new/page';
+import ScenarioEditPage from '../../src/app/scenario/edit/page';
 import TestOptimizerPage from '../../src/app/test-optimizer/page';
 import { ToastContainer } from '../../src/components/toast';
 import '../../src/app/globals.css';
@@ -41,6 +42,7 @@ function App() {
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/scenario/new" element={<ScenarioBuilderPage />} />
+            <Route path="/scenario/edit/:id" element={<ScenarioEditPage />} />
             <Route path="/test-optimizer" element={<TestOptimizerPage />} />
           </Routes>
         </main>

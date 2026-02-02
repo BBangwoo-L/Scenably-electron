@@ -11,29 +11,37 @@ export function useRecording() {
   const [error, setError] = useState<string | null>(null);
 
   const startRecording = async (url: string) => {
+    setIsLoading(true);
+    setError(null);
+
     try {
-      setIsLoading(true);
-      setError(null);
+      console.log('🚀 Starting recording for URL:', url, 'Mode:', recordingMode);
 
       const result = await RecordingService.start({
         url,
         mode: recordingMode,
       });
 
-      if (result.mode === 'interactive' && result.sessionId) {
+      console.log('📦 Recording service result:', result);
+
+      if (result.sessionId) {
         setRecordingSession({
           sessionId: result.sessionId,
           status: 'recording',
         });
+        console.log('✅ Recording session started with ID:', result.sessionId);
       }
 
       return result;
     } catch (err) {
+      console.error('❌ Recording start failed:', err);
       const errorMessage = err instanceof Error ? err.message : "Failed to start recording";
       setError(errorMessage);
       throw new Error(errorMessage);
     } finally {
+      // 성공/실패 관계없이 항상 로딩 상태 해제
       setIsLoading(false);
+      console.log('🔄 Loading state cleared');
     }
   };
 

@@ -6,7 +6,11 @@ import { ScenarioInfoForm } from "./scenario-info-form";
 import { RecordingControls } from "@/features/recording/components";
 import { CodeEditor } from "./code-editor";
 
-export function ScenarioBuilder() {
+interface ScenarioBuilderProps {
+  scenarioId?: string;
+}
+
+export function ScenarioBuilder({ scenarioId }: ScenarioBuilderProps) {
   const {
     scenarioData,
     isLoading: builderLoading,
@@ -15,7 +19,7 @@ export function ScenarioBuilder() {
     modifyWithAI,
     executeTest,
     navigateHome
-  } = useScenarioBuilder();
+  } = useScenarioBuilder(undefined, scenarioId);
 
   const {
     recordingMode,

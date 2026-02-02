@@ -72,8 +72,7 @@ CLAUDE_API_KEY="your-claude-api-key"  # AI 기능을 위한 Claude API 키
 
 ### 3. 데이터베이스 초기화
 ```bash
-npm run db:push      # 스키마 변경사항을 데이터베이스에 적용
-npm run db:generate  # Prisma 클라이언트 생성
+npx electron-rebuild
 ```
 
 ### 4. 개발 서버 시작
