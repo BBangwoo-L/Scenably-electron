@@ -1,14 +1,12 @@
-"use client";
-
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useNavigate } from "react-router-dom";
 import { Button, Input, Label } from "@/shared/ui";
 import { Globe, ArrowRight } from "lucide-react";
 
 export function UrlInput() {
   const [url, setUrl] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const router = useRouter();
+  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,7 +24,7 @@ export function UrlInput() {
       new URL(validUrl); // This will throw if invalid
 
       // Navigate to scenario builder with the URL
-      router.push(`/scenario/new?url=${encodeURIComponent(validUrl)}`);
+      navigate(`/scenario/new?url=${encodeURIComponent(validUrl)}`);
     } catch (error) {
       alert("올바른 URL을 입력해주세요");
     } finally {

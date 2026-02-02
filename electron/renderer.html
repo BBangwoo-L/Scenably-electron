@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scenably - E2E Testing Scenario Builder</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background-color: #fafafa;
+            color: #1f2937;
+        }
+
+        .header {
+            background: white;
+            border-bottom: 1px solid #e5e7eb;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+            padding: 0 1rem;
+        }
+
+        .header-content {
+            display: flex;
+            align-items: center;
+            height: 60px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #1f2937;
+            cursor: pointer;
+        }
+
+        .main-content {
+            padding: 2rem 1rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 1.5rem;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+            margin-bottom: 1.5rem;
+        }
+
+        .btn {
+            background-color: #3b82f6;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background-color 0.2s;
+            font-size: 1rem;
+        }
+
+        .btn:hover {
+            background-color: #2563eb;
+        }
+
+        .btn:disabled {
+            background-color: #9ca3af;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background-color: #6b7280;
+        }
+
+        .btn-secondary:hover {
+            background-color: #4b5563;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: #374151;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-family: inherit;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        .textarea {
+            min-height: 200px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            resize: vertical;
+        }
+
+        .grid {
+            display: grid;
+            gap: 1.5rem;
+        }
+
+        .grid-cols-2 {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .text-muted {
+            color: #6b7280;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
+        .mb-4 { margin-bottom: 1rem; }
+        .mb-6 { margin-bottom: 1.5rem; }
+        .hidden { display: none; }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3b82f6;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .step-item {
+            display: flex;
+            gap: 0.75rem;
+            align-items: flex-start;
+            margin-bottom: 1rem;
+        }
+
+        .step-icon {
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            font-size: 1.2rem;
+        }
+
+        .step-content h3 {
+            font-weight: 500;
+            margin-bottom: 0.25rem;
+        }
+
+        .step-content p {
+            font-size: 0.875rem;
+            color: #6b7280;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        @media (max-width: 768px) {
+            .grid-cols-2 {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-content">
+            <div class="logo" onclick="showHome()">
+                Scenably
+            </div>
+        </div>
+    </header>
+
+    <main class="main-content">
+        <!-- 홈 페이지 -->
+        <div id="homePage">
+            <div class="text-center mb-6">
+                <h1 style="font-size: 2rem; font-weight: bold; margin-bottom: 1rem;">
+                    E2E 테스트 시나리오 빌더
+                </h1>
+                <p class="text-muted">
+                    AI 도움으로 웹사이트 E2E 테스트를 생성, 관리, 실행하세요
+                </p>
+            </div>
+
+            <div class="text-center mb-6">
+                <button class="btn" onclick="showScenarioBuilder()">
+                    + 새 시나리오 생성
+                </button>
+            </div>
+
+            <div class="card">
+                <h2 style="font-size: 1.25rem; font-weight: 600; margin-bottom: 1rem;">
+                    ⚡ 테스트 시나리오 생성 방법
+                </h2>
+
+                <div class="step-item">
+                    <div class="step-icon" style="background-color: #dbeafe;">
+                        🌐
+                    </div>
+                    <div class="step-content">
+                        <h3>1. 웹사이트 URL 입력</h3>
+                        <p>테스트할 웹사이트 URL을 입력하세요 (예: https://example.com)</p>
+                    </div>
+                </div>
+
+                <div class="step-item">
+                    <div class="step-icon" style="background-color: #dcfce7;">
+                        📝
+                    </div>
+                    <div class="step-content">
+                        <h3>2. 시나리오 작성</h3>
+                        <p>Playwright 코드를 직접 작성하거나 템플릿을 사용하세요</p>
+                    </div>
+                </div>
+
+                <div class="step-item">
+                    <div class="step-icon" style="background-color: #fef3c7;">
+                        🤖
+                    </div>
+                    <div class="step-content">
+                        <h3>3. AI로 개선</h3>
+                        <p>"AI로 수정하기"를 사용하여 자연어로 테스트를 개선하세요</p>
+                    </div>
+                </div>
+
+                <div class="step-item">
+                    <div class="step-icon" style="background-color: #fee2e2;">
+                        ▶️
+                    </div>
+                    <div class="step-content">
+                        <h3>4. 저장 및 실행</h3>
+                        <p>시나리오를 저장하고 테스트를 실행하여 결과를 확인하세요</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 시나리오 빌더 페이지 -->
+        <div id="scenarioBuilderPage" class="hidden">
+            <div class="mb-6">
+                <h1 style="font-size: 2rem; font-weight: bold; margin-bottom: 0.5rem;">
+                    테스트 시나리오 생성
+                </h1>
+                <p class="text-muted">
+                    단계별로 E2E 테스트 시나리오를 만들어보세요
+                </p>
+            </div>
+
+            <div class="grid grid-cols-2">
+                <!-- 좌측 컬럼 - 시나리오 정보 -->
+                <div>
+                    <div class="card">
+                        <h2 style="font-size: 1.25rem; font-weight: 600; margin-bottom: 1rem;">
+                            시나리오 정보
+                        </h2>
+
+                        <div class="form-group">
+                            <label class="form-label">시나리오 이름</label>
+                            <input
+                                type="text"
+                                class="form-input"
+                                id="scenarioName"
+                                placeholder="예: 로그인 테스트"
+                            />
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">설명</label>
+                            <textarea
+                                class="form-input"
+                                rows="3"
+                                id="scenarioDescription"
+                                placeholder="시나리오에 대한 간단한 설명을 입력하세요"
+                            ></textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">대상 URL</label>
+                            <input
+                                type="url"
+                                class="form-input"
+                                id="scenarioUrl"
+                                placeholder="https://example.com"
+                            />
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <h2 style="font-size: 1.25rem; font-weight: 600; margin-bottom: 1rem;">
+                            작업
+                        </h2>
+                        <div class="button-group">
+                            <button class="btn" onclick="saveScenario()" id="saveBtn">
+                                저장
+                            </button>
+                            <button class="btn btn-secondary" onclick="aiModifyCode()" id="aiBtn">
+                                AI로 수정하기
+                            </button>
+                            <button class="btn btn-secondary" onclick="showHome()">
+                                홈으로
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 우측 컬럼 - 코드 에디터 -->
+                <div>
+                    <div class="card">
+                        <h2 style="font-size: 1.25rem; font-weight: 600; margin-bottom: 1rem;">
+                            Playwright 코드
+                        </h2>
+                        <div class="form-group">
+                            <textarea
+                                class="form-input textarea"
+                                id="scenarioCode"
+                                placeholder="Playwright 테스트 코드를 입력하세요..."
+                            >import { test, expect } from '@playwright/test';
+
+test('E2E Test', async ({ page }) => {
+  // Navigate to the target URL
+  await page.goto('https://example.com');
+
+  // Wait for the page to load
+  await page.waitForLoadState('networkidle');
+
+  // Add your test steps here
+  // Example: Check if page title is not empty
+  const title = await page.title();
+  expect(title).toBeTruthy();
+
+  // Example: Take a screenshot
+  await page.screenshot({ path: 'screenshot.png' });
+});</textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let isLoading = false;
+
+        function showHome() {
+            document.getElementById('homePage').classList.remove('hidden');
+            document.getElementById('scenarioBuilderPage').classList.add('hidden');
+        }
+
+        function showScenarioBuilder() {
+            document.getElementById('homePage').classList.add('hidden');
+            document.getElementById('scenarioBuilderPage').classList.remove('hidden');
+        }
+
+        function setLoading(loading) {
+            isLoading = loading;
+            const saveBtn = document.getElementById('saveBtn');
+            const aiBtn = document.getElementById('aiBtn');
+
+            if (loading) {
+                saveBtn.innerHTML = '<span class="loading"></span>';
+                saveBtn.disabled = true;
+                aiBtn.disabled = true;
+            } else {
+                saveBtn.innerHTML = '저장';
+                saveBtn.disabled = false;
+                aiBtn.disabled = false;
+            }
+        }
+
+        async function saveScenario() {
+            const name = document.getElementById('scenarioName').value.trim();
+            const description = document.getElementById('scenarioDescription').value.trim();
+            const targetUrl = document.getElementById('scenarioUrl').value.trim();
+            const code = document.getElementById('scenarioCode').value.trim();
+
+            if (!name) {
+                alert('시나리오 이름을 입력해주세요.');
+                return;
+            }
+
+            setLoading(true);
+            try {
+                if (window.electronAPI) {
+                    const result = await window.electronAPI.scenarios.create({
+                        name,
+                        description,
+                        targetUrl,
+                        code
+                    });
+
+                    if (result.success) {
+                        alert('시나리오가 성공적으로 저장되었습니다!');
+                        showHome();
+                    } else {
+                        alert('저장에 실패했습니다: ' + result.error);
+                    }
+                } else {
+                    alert('Electron API를 사용할 수 없습니다.');
+                }
+            } catch (error) {
+                alert('저장에 실패했습니다: ' + error.message);
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        async function aiModifyCode() {
+            const instruction = prompt(
+                '테스트 시나리오를 어떻게 수정하고 싶은지 설명해주세요:\n' +
+                '(예: "로그인 테스트 추가", "특정 텍스트 확인", "폼 유효성 검사 추가")'
+            );
+
+            if (!instruction) return;
+
+            setLoading(true);
+            try {
+                if (window.electronAPI) {
+                    const currentCode = document.getElementById('scenarioCode').value;
+                    const result = await window.electronAPI.ai.modify(currentCode, instruction);
+
+                    if (result.success) {
+                        document.getElementById('scenarioCode').value = result.modifiedCode;
+                        alert('AI가 코드를 성공적으로 수정했습니다!');
+                    } else {
+                        alert('AI 수정에 실패했습니다: ' + result.error);
+                    }
+                } else {
+                    alert('Electron API를 사용할 수 없습니다.');
+                }
+            } catch (error) {
+                alert('AI 수정에 실패했습니다: ' + error.message);
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        // Electron API 확인
+        document.addEventListener('DOMContentLoaded', function() {
+            if (!window.electronAPI) {
+                console.warn('Electron API not available');
+            } else {
+                console.log('Electron API loaded successfully');
+            }
+        });
+    </script>
+</body>
+</html>

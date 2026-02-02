@@ -1,12 +1,10 @@
-"use client";
-
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useNavigate } from 'react-router-dom';
 import type { Scenario } from '../lib';
 import { ScenarioService } from '../services';
 
 export function useScenarioActions() {
-  const router = useRouter();
+  const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -58,7 +56,7 @@ export function useScenarioActions() {
   };
 
   const editScenario = (scenario: Scenario) => {
-    router.push(`/scenario/edit/${scenario.id}`);
+    navigate(`/scenario/edit/${scenario.id}`);
   };
 
   return {

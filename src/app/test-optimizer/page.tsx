@@ -1,15 +1,13 @@
-'use client';
-
-import { useRouter } from 'next/navigation';
-import { useEffect, useState, Suspense } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import { PlaywrightCodeOptimizer } from '@/features/scenarios/components/playwright-code-optimizer';
 import { Button } from '@/shared/ui/button';
 import { ArrowLeft, Loader2 } from 'lucide-react';
-import { useSearchParams } from 'next/navigation';
 
-function TestOptimizerContent() {
-  const searchParams = useSearchParams();
-  const router = useRouter();
+export default function TestOptimizerPage() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
 
   // 로딩 및 데이터 상태
   const [isLoading, setIsLoading] = useState(true);
@@ -39,32 +37,25 @@ function TestOptimizerContent() {
 
       if (!scenarioId) {
         alert('시나리오 ID가 필요합니다');
-        router.push(returnUrl);
+        navigate(returnUrl);
         return;
       }
 
       try {
-        const response = await fetch(`/api/scenarios/${scenarioId}`);
-        if (response.ok) {
-          const scenario = await response.json();
+        const scenario = await window.electronAPI.scenarios.getById(scenarioId);
 
-          setScenarioData({
-            scenarioId: scenario.id,
-            scenarioName: scenario.name || '',
-            scenarioDescription: scenario.description || '',
-            targetUrl: scenario.targetUrl || '',
-            initialCode: scenario.code || '',
-            returnUrl: returnUrl
-          });
-        } else {
-          alert('시나리오를 찾을 수 없습니다');
-          router.push(returnUrl);
-          return;
-        }
+        setScenarioData({
+          scenarioId: scenario.id,
+          scenarioName: scenario.name || '',
+          scenarioDescription: scenario.description || '',
+          targetUrl: scenario.targetUrl || '',
+          initialCode: scenario.code || '',
+          returnUrl: returnUrl
+        });
       } catch (error) {
         console.error('시나리오 로드 실패:', error);
         alert('시나리오 로드에 실패했습니다');
-        router.push(returnUrl);
+        navigate(returnUrl);
         return;
       }
 
@@ -72,7 +63,7 @@ function TestOptimizerContent() {
     };
 
     loadScenarioData();
-  }, [searchParams, router]);
+  }, [location.search, navigate]);
 
   const handleSaveAndReturn = async (optimizedCode: string) => {
     if (!scenarioData.scenarioId) {
@@ -81,26 +72,15 @@ function TestOptimizerContent() {
     }
 
     try {
-      const response = await fetch(`/api/scenarios/${scenarioData.scenarioId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: scenarioData.scenarioName,
-          description: scenarioData.scenarioDescription,
-          targetUrl: scenarioData.targetUrl,
-          code: optimizedCode,
-        }),
+      await window.electronAPI.scenarios.update(scenarioData.scenarioId, {
+        name: scenarioData.scenarioName,
+        description: scenarioData.scenarioDescription,
+        targetUrl: scenarioData.targetUrl,
+        code: optimizedCode,
       });
 
-      if (response.ok) {
-        alert('최적화된 코드가 저장되었습니다!');
-        router.push(scenarioData.returnUrl);
-      } else {
-        const error = await response.json();
-        alert(`저장 실패: ${error.error}`);
-      }
+      alert('최적화된 코드가 저장되었습니다!');
+      navigate(scenarioData.returnUrl);
     } catch (error) {
       alert('저장에 실패했습니다');
       console.error(error);
@@ -127,7 +107,7 @@ function TestOptimizerContent() {
           <div className="flex items-center gap-4 mb-4">
             <Button
               variant="ghost"
-              onClick={() => router.push(scenarioData.returnUrl)}
+              onClick={() => navigate(scenarioData.returnUrl)}
               className="gap-2"
             >
               <ArrowLeft className="h-4 w-4" />
@@ -162,14 +142,3 @@ function TestOptimizerContent() {
   );
 }
 
-export default function TestOptimizerPage() {
-  return (
-    <Suspense fallback={
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
-    }>
-      <TestOptimizerContent />
-    </Suspense>
-  );
-}

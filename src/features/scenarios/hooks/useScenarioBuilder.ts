@@ -1,7 +1,5 @@
-"use client";
-
 import { useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useNavigate, useLocation } from 'react-router-dom';
 import type { CreateScenarioData } from '../lib';
 import { ScenarioService, AIService } from '../services';
 
@@ -10,8 +8,9 @@ export interface ScenarioData extends CreateScenarioData {
 }
 
 export function useScenarioBuilder(initialData?: Partial<ScenarioData>) {
-  const router = useRouter();
-  const searchParams = useSearchParams();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
   const targetUrl = searchParams.get("url") || initialData?.targetUrl || "";
 
   const [scenarioData, setScenarioData] = useState<ScenarioData>({
@@ -122,7 +121,7 @@ test('E2E Test for ${targetUrl}', async ({ page }) => {
   };
 
   const navigateHome = () => {
-    router.push("/");
+    navigate("/");
   };
 
   return {

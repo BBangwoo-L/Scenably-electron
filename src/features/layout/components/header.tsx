@@ -1,6 +1,4 @@
-"use client";
-
-import Link from "next/link";
+import { Link } from "react-router-dom";
 
 export function Header() {
   return (
@@ -8,7 +6,7 @@ export function Header() {
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex h-14 items-center">
           <Link
-            href="/"
+            to="/"
             className="hover:opacity-80 transition-opacity"
           >
             <div className="flex items-center space-x-3">
