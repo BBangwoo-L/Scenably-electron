@@ -68,13 +68,42 @@
   "build": {
     "appId": "com.scenably.app",
     "productName": "Scenably",
+    "asar": true,
+    "asarUnpack": [
+      "node_modules/@playwright/**",
+      "node_modules/playwright/**",
+      "node_modules/playwright-core/**",
+      "node_modules/.bin/playwright*",
+      "node_modules/playwright/.local-browsers/**"
+    ],
     "directories": {
       "output": "release"
     },
     "files": [
       "dist-electron/**/*",
       "assets/**/*",
+      "node_modules/@playwright/**/*",
+      "node_modules/playwright/**/*",
+      "node_modules/playwright-core/**/*",
+      "node_modules/better-sqlite3/**/*",
       "!node_modules/.cache/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "node_modules/@playwright",
+        "to": "app/node_modules/@playwright",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "node_modules/playwright",
+        "to": "app/node_modules/playwright",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "node_modules/playwright-core",
+        "to": "app/node_modules/playwright-core",
+        "filter": ["**/*"]
+      }
     ],
     "mac": {
       "category": "public.app-category.developer-tools",
