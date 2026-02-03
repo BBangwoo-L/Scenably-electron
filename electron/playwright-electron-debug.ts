@@ -68,6 +68,104 @@ export class ElectronPlaywrightDebugger {
     return executableName; // 기본값으로 system PATH에서 찾기 시도
   }
 
+  private static getBrowserPath(): string {
+    const isDevelopment = process.env.NODE_ENV === 'development' ||
+                         process.execPath.includes('electron') ||
+                         !app.isPackaged;
+
+    if (isDevelopment) {
+      // 개발 모드: 프로젝트의 browsers 폴더 사용
+      return path.resolve(process.cwd(), 'browsers');
+    } else {
+      // 패키징 모드: resources의 browsers 폴더 사용
+      return path.resolve(process.resourcesPath, 'browsers');
+    }
+  }
+
+  private static getAvailableChromiumExecutablePath(): string | null {
+    const browserPath = this.getBrowserPath();
+
+    if (!existsSync(browserPath)) {
+      console.log(`❌ Browser path does not exist: ${browserPath}`);
+      return null;
+    }
+
+    try {
+      const fs = require('fs');
+      const chromiumDirs = fs.readdirSync(browserPath).filter((dir: string) =>
+        dir.startsWith('chromium-') && fs.statSync(path.join(browserPath, dir)).isDirectory()
+      );
+
+      if (chromiumDirs.length === 0) {
+        console.log(`❌ No chromium directories found in: ${browserPath}`);
+        return null;
+      }
+
+      // 가장 최근 버전을 선택
+      const latestChromium = chromiumDirs.sort().pop();
+      const chromiumDir = path.join(browserPath, latestChromium);
+
+      // 플랫폼별 실행파일 경로 확인
+      const possiblePaths = [];
+      if (process.platform === 'win32') {
+        possiblePaths.push(
+          path.join(chromiumDir, 'chrome-win', 'chrome.exe'),
+          path.join(chromiumDir, 'chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium'), // 크로스 플랫폼
+          // Windows에서 headless shell 사용 (더 안정적)
+          path.join(browserPath, 'chromium_headless_shell-1193', 'chrome-mac', 'headless_shell'),
+        );
+      } else if (process.platform === 'darwin') {
+        possiblePaths.push(
+          path.join(chromiumDir, 'chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium'),
+          path.join(chromiumDir, 'chrome-win', 'chrome.exe'), // Windows 빌드용
+        );
+      } else {
+        possiblePaths.push(
+          path.join(chromiumDir, 'chrome-linux', 'chrome'),
+          path.join(chromiumDir, 'chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium'),
+        );
+      }
+
+      for (const executablePath of possiblePaths) {
+        console.log(`🔍 Checking debug executable at: ${executablePath}`);
+        if (existsSync(executablePath)) {
+          const stats = fs.statSync(executablePath);
+          if (stats.size > 1000000) { // 1MB 이상이면 실제 실행파일
+            console.log(`✅ Found debug executable: ${executablePath} (${stats.size} bytes)`);
+            return executablePath;
+          } else {
+            console.log(`⚠️ Debug file too small: ${executablePath} (${stats.size} bytes)`);
+          }
+        } else {
+          console.log(`❌ Debug not found: ${executablePath}`);
+        }
+      }
+
+      // Windows에서 시스템에 설치된 Chrome 찾기
+      if (process.platform === 'win32') {
+        const systemPaths = [
+          'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+          'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+          path.join(require('os').homedir(), 'AppData\\Local\\Google\\Chrome\\Application\\chrome.exe')
+        ];
+
+        for (const systemPath of systemPaths) {
+          console.log(`🔍 Checking system Chrome for debug at: ${systemPath}`);
+          if (existsSync(systemPath)) {
+            console.log(`✅ Found system Chrome for debug: ${systemPath}`);
+            return systemPath;
+          }
+        }
+      }
+
+      console.log(`❌ No valid debug executable found in ${chromiumDir}`);
+      return null;
+    } catch (error) {
+      console.log(`❌ Error finding debug chromium executable: ${error}`);
+      return null;
+    }
+  }
+
   static async ensureTempDirectory(): Promise<void> {
     const fs = await import('fs/promises');
     try {
@@ -157,8 +255,9 @@ export class ElectronPlaywrightDebugger {
         ];
       }
 
-      console.log('Debug executable:', executable);
-      console.log('Debug command:', command.join(' '));
+      console.log('🔧 Debug browser path:', this.getBrowserPath());
+      console.log('🔧 Debug executable:', executable);
+      console.log('🔧 Debug command:', command.join(' '));
 
       const childProcess = spawn(executable, command, {
         cwd: process.cwd(),
@@ -167,11 +266,16 @@ export class ElectronPlaywrightDebugger {
         env: {
           ...process.env,
           NODE_ENV: 'development',
-          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '0',
-          // Windows용 추가 환경변수
-          PLAYWRIGHT_BROWSERS_PATH: process.platform === 'win32' ?
-            path.resolve(process.resourcesPath, 'browsers') :
-            process.env.PLAYWRIGHT_BROWSERS_PATH
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1', // 브라우저 다운로드 방지
+          // 브라우저 경로 설정 (개발/패키징 모드 자동 분리)
+          PLAYWRIGHT_BROWSERS_PATH: this.getBrowserPath(),
+          // chromium 실행파일 경로 직접 지정
+          ...(this.getAvailableChromiumExecutablePath() ? {
+            PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH: this.getAvailableChromiumExecutablePath()
+          } : {}),
+          // Electron 실행 방지를 위한 환경변수 제거
+          ELECTRON_RUN_AS_NODE: undefined,
+          ELECTRON_NO_ATTACH_CONSOLE: undefined
         }
       });
 

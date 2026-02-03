@@ -14,13 +14,17 @@
     "electron:dev": "npm run build:electron && npm run build:renderer && electron dist-electron/main.js",
     "electron:pack": "npm run build:electron && npm run build:renderer && electron-builder",
     "build:electron": "tsc --project electron/tsconfig.json",
+    "download-browsers": "node scripts/copy-browsers.js",
+    "install-browsers": "node scripts/download-all-browsers.js",
+    "postinstall": "npm run install-browsers",
     "dist": "npm run build:electron && npm run build:renderer && electron-builder --publish=never",
-    "dist:win": "npm run build:electron && npm run build:renderer && electron-builder --win --publish=never",
+    "dist:win": "npm run build:electron && npm run build:renderer && npm run ensure-win-browsers && electron-builder --win --publish=never",
+    "ensure-win-browsers": "node scripts/ensure-windows-browsers.js && node scripts/create-windows-chrome-wrapper.js",
     "dist:mac": "npm run build:electron && npm run build:renderer && electron-builder --mac --publish=never",
     "dist:linux": "npm run build:electron && npm run build:renderer && electron-builder --linux --publish=never"
   },
   "dependencies": {
-    "@playwright/test": "^1.55.0",
+    "@playwright/test": "1.55.1",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-avatar": "^1.1.11",
     "@radix-ui/react-dialog": "^1.1.15",
@@ -74,8 +78,7 @@
       "node_modules/@playwright/**",
       "node_modules/playwright/**",
       "node_modules/playwright-core/**",
-      "node_modules/.bin/playwright*",
-      "node_modules/playwright/.local-browsers/**"
+      "node_modules/.bin/playwright*"
     ],
     "directories": {
       "output": "release"
@@ -83,6 +86,7 @@
     "files": [
       "dist-electron/**/*",
       "assets/**/*",
+      "browsers/**/*",
       "node_modules/@playwright/**/*",
       "node_modules/playwright/**/*",
       "node_modules/playwright-core/**/*",
@@ -107,6 +111,13 @@
       {
         "from": "node_modules/playwright-core",
         "to": "app/node_modules/playwright-core",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "browsers",
+        "to": "browsers",
         "filter": [
           "**/*"
         ]
