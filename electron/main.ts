@@ -41,7 +41,7 @@ function createWindow(): void {
 }
 
 app.whenReady().then(async () => {
-  try {
+  try {₩
     console.log('Scenably 앱 시작 중...');
 
     // SQLite IPC 핸들러 설정

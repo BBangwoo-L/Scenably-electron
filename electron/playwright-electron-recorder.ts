@@ -3,6 +3,7 @@ import { readFile, unlink, writeFile, access } from 'fs/promises';
 import { existsSync } from 'fs';
 import path from 'path';
 import { app } from 'electron';
+import { log } from "electron-log";
 
 interface RecordingSession {
   sessionId: string;
@@ -52,19 +53,19 @@ export class ElectronPlaywrightRecorder {
       'playwright'
     ];
 
-    console.log('execPath:', process.execPath);
-    console.log('cwd:', process.cwd());
-    console.log('resourcesPath:', process.resourcesPath);
+    log('execPath:', process.execPath);
+    log('cwd:', process.cwd());
+    log('resourcesPath:', process.resourcesPath);
 
     for (const binPath of possiblePaths) {
-      console.log(`Checking Playwright binary at: ${binPath}`);
+      log(`Checking Playwright binary at: ${binPath}`);
       if (existsSync(binPath)) {
-        console.log(`✅ Found Playwright binary: ${binPath}`);
+        log(`✅ Found Playwright binary: ${binPath}`);
         return binPath;
       }
     }
 
-    console.log('⚠️ No Playwright binary found, using default');
+    log('⚠️ No Playwright binary found, using default');
     return executableName; // 기본값으로 system PATH에서 찾기 시도
   }
 
@@ -73,27 +74,27 @@ export class ElectronPlaywrightRecorder {
     try {
       await fs.mkdir(this.tempDir, { recursive: true });
     } catch (error) {
-      console.log('Temp directory already exists or creation failed:', error);
+      log('Temp directory already exists or creation failed:', error);
     }
   }
 
   static async startRecording(url: string, sessionId: string): Promise<{ sessionId: string; message: string }> {
     try {
-      console.log(`🎬 [Electron] Starting recording for URL: ${url}, Session: ${sessionId}`);
-      console.log(`🔍 [Debug] Process info - execPath: ${process.execPath}`);
-      console.log(`🔍 [Debug] Process info - cwd: ${process.cwd()}`);
-      console.log(`🔍 [Debug] Process info - resourcesPath: ${process.resourcesPath}`);
-      console.log(`🔍 [Debug] Process info - platform: ${process.platform}`);
+      log(`🎬 [Electron] Starting recording for URL: ${url}, Session: ${sessionId}`);
+      log(`🔍 [Debug] Process info - execPath: ${process.execPath}`);
+      log(`🔍 [Debug] Process info - cwd: ${process.cwd()}`);
+      log(`🔍 [Debug] Process info - resourcesPath: ${process.resourcesPath}`);
+      log(`🔍 [Debug] Process info - platform: ${process.platform}`);
 
       await this.ensureTempDirectory();
-      console.log(`📁 [Debug] Temp directory ensured: ${this.tempDir}`);
+      log(`📁 [Debug] Temp directory ensured: ${this.tempDir}`);
 
       if (this.sessions.has(sessionId)) {
         throw new Error('이미 활성화된 레코딩 세션이 있습니다');
       }
 
       const outputFile = path.join(this.tempDir, `recording-${sessionId}.spec.ts`);
-      console.log(`📄 [Debug] Output file: ${outputFile}`);
+      log(`📄 [Debug] Output file: ${outputFile}`);
 
       // Create session object
       const session: RecordingSession = {
@@ -104,14 +105,14 @@ export class ElectronPlaywrightRecorder {
       };
 
       this.sessions.set(sessionId, session);
-      console.log(`📝 [Debug] Session created: ${JSON.stringify(session, null, 2)}`);
+      log(`📝 [Debug] Session created: ${JSON.stringify(session, null, 2)}`);
 
       // Playwright process를 비동기로 시작하고 즉시 리턴
-      console.log(`🚀 [Debug] Starting Playwright process asynchronously...`);
+      log(`🚀 [Debug] Starting Playwright process asynchronously...`);
       this.startPlaywrightProcessAsync(session);
 
       session.status = 'recording';
-      console.log(`✅ [Debug] Recording session status updated to 'recording'`);
+      log(`✅ [Debug] Recording session status updated to 'recording'`);
 
       return {
         sessionId,
@@ -119,7 +120,7 @@ export class ElectronPlaywrightRecorder {
       };
 
     } catch (error) {
-      console.error('❌ Failed to start recording:', error);
+      log('❌ Failed to start recording:', error);
       this.sessions.delete(sessionId);
       throw new Error(`레코딩 시작 실패: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
     }
@@ -132,26 +133,26 @@ export class ElectronPlaywrightRecorder {
       const success = await this.tryPlaywrightCodegen(session);
       if (!success) {
         // Method 2: Fallback to template generation
-        console.log('🔄 Codegen failed, falling back to template');
+        log('🔄 Codegen failed, falling back to template');
         await this.generateTemplateCode(session);
       }
     } catch (error) {
-      console.error('Codegen error, using template:', error);
+      log('Codegen error, using template:', error);
       await this.generateTemplateCode(session);
     }
   }
 
   private static async tryPlaywrightCodegen(session: RecordingSession): Promise<boolean> {
     return new Promise((resolve) => {
-      console.log('🚀 [Debug] Trying Playwright codegen...');
+      log('🚀 [Debug] Trying Playwright codegen...');
 
       // 패키징된 앱과 개발 모드 모두 지원하는 경로 탐지
-      console.log('🔍 [Debug] Finding Playwright binary...');
+      log('🔍 [Debug] Finding Playwright binary...');
       const playwrightBin = this.findPlaywrightBinary();
-      console.log(`✅ [Debug] Found Playwright binary: ${playwrightBin}`);
+      log(`✅ [Debug] Found Playwright binary: ${playwrightBin}`);
 
       const isNodeJsScript = playwrightBin.endsWith('.js');
-      console.log(`🗋 [Debug] Is Node.js script: ${isNodeJsScript}`);
+      log(`🗋 [Debug] Is Node.js script: ${isNodeJsScript}`);
 
       let command: string[];
       let executable: string;
@@ -179,11 +180,11 @@ export class ElectronPlaywrightRecorder {
         ];
       }
 
-      console.log('execPath:', process.execPath);
-      console.log('cwd:', process.cwd());
-      console.log('resourcesPath:', process.resourcesPath);
-      console.log('Using executable:', executable);
-      console.log('Command args:', command);
+      log('execPath:', process.execPath);
+      log('cwd:', process.cwd());
+      log('resourcesPath:', process.resourcesPath);
+      log('Using executable:', executable);
+      log('Command args:', command);
 
       const childProcess = spawn(executable, command, {
         cwd: process.cwd(), // Use current working directory instead of app path
@@ -203,40 +204,40 @@ export class ElectronPlaywrightRecorder {
       let hasOutput = false;
 
       childProcess.stdout?.on('data', (data) => {
-        console.log(`📤 Playwright stdout: ${data.toString()}`);
+        log(`📤 Playwright stdout: ${data.toString()}`);
         hasOutput = true;
       });
 
       childProcess.stderr?.on('data', (data) => {
         const errorText = data.toString();
-        console.error(`📤 Playwright stderr: ${errorText}`);
+        log(`📤 Playwright stderr: ${errorText}`);
 
         // 특정 에러가 발생하면 fallback으로 전환
         if (errorText.includes('TargetClosedError') || errorText.includes('Browser closed') || errorText.includes('Process exited')) {
-          console.log('🔄 Playwright process failed, using template fallback');
+          log('🔄 Playwright process failed, using template fallback');
           childProcess.kill();
           resolve(false);
         }
       });
 
       childProcess.on('spawn', () => {
-        console.log('✅ Playwright process spawned successfully');
+        log('✅ Playwright process spawned successfully');
         session.process = childProcess;
         hasOutput = true; // Mark as successful spawn
       });
 
       childProcess.on('error', (error) => {
-        console.error('❌ [Debug] Playwright spawn error details:');
-        console.error(`❌ [Debug] Error name: ${error.name}`);
-        console.error(`❌ [Debug] Error message: ${error.message}`);
-        console.error(`❌ [Debug] Error stack: ${error.stack}`);
-        console.error(`❌ [Debug] Used executable: ${executable}`);
-        console.error(`❌ [Debug] Used command: ${JSON.stringify(command)}`);
+        log('❌ [Debug] Playwright spawn error details:');
+        log(`❌ [Debug] Error name: ${error.name}`);
+        log(`❌ [Debug] Error message: ${error.message}`);
+        log(`❌ [Debug] Error stack: ${error.stack}`);
+        log(`❌ [Debug] Used executable: ${executable}`);
+        log(`❌ [Debug] Used command: ${JSON.stringify(command)}`);
         resolve(false);
       });
 
       childProcess.on('close', (code) => {
-        console.log(`🏁 Playwright process closed with code: ${code}`);
+        log(`🏁 Playwright process closed with code: ${code}`);
         if (code === 0) {
           resolve(true); // Successful completion
         } else {
@@ -249,7 +250,7 @@ export class ElectronPlaywrightRecorder {
   }
 
   private static async generateTemplateCode(session: RecordingSession): Promise<void> {
-    console.log('📝 Generating template code...');
+    log('📝 Generating template code...');
 
     const templateCode = `import { test, expect } from '@playwright/test';
 
@@ -265,7 +266,7 @@ test('Recorded test for ${session.url}', async ({ page }) => {
 
   // Get page title
   const title = await page.title();
-  console.log('Page title:', title);
+  log('Page title:', title);
   expect(title).toBeTruthy();
 
   // TODO: 이 부분에 실제 레코딩된 액션들이 들어갑니다.
@@ -291,37 +292,37 @@ test('Interactive elements test for ${session.url}', async ({ page }) => {
 
   // Find and test clickable elements
   const buttons = await page.locator('button, [type="button"], [role="button"]').count();
-  console.log(\`Found \${buttons} clickable elements\`);
+  log(\`Found \${buttons} clickable elements\`);
 
   // Find and test form inputs
   const inputs = await page.locator('input, textarea, select').count();
-  console.log(\`Found \${inputs} form inputs\`);
+  log(\`Found \${inputs} form inputs\`);
 
   // Find and test links
   const links = await page.locator('a[href]').count();
-  console.log(\`Found \${links} links\`);
+  log(\`Found \${links} links\`);
 
   // Test basic accessibility
   const headings = await page.locator('h1, h2, h3, h4, h5, h6').count();
-  console.log(\`Found \${headings} headings\`);
+  log(\`Found \${headings} headings\`);
 
   // Performance timing
   const loadTime = await page.evaluate(() => {
     return performance.timing.loadEventEnd - performance.timing.navigationStart;
   });
-  console.log(\`Page load time: \${loadTime}ms\`);
+  log(\`Page load time: \${loadTime}ms\`);
 
   // Assert reasonable performance
   expect(loadTime).toBeLessThan(5000);
 });`;
 
     await writeFile(session.outputFile, templateCode, 'utf-8');
-    console.log('✅ Template code generated');
+    log('✅ Template code generated');
   }
 
   static async stopRecording(sessionId: string): Promise<{ code: string; message: string }> {
     try {
-      console.log(`🛑 Stopping recording for session: ${sessionId}`);
+      log(`🛑 Stopping recording for session: ${sessionId}`);
 
       const session = this.sessions.get(sessionId);
       if (!session) {
@@ -341,7 +342,7 @@ test('Interactive elements test for ${session.url}', async ({ page }) => {
             session.process.kill('SIGKILL');
           }
         } catch (error) {
-          console.error('Error killing process:', error);
+          log('Error killing process:', error);
         }
       }
 
@@ -355,7 +356,7 @@ test('Interactive elements test for ${session.url}', async ({ page }) => {
           code = await readFile(session.outputFile, 'utf-8');
           break;
         } catch (error) {
-          console.log(`📖 Attempt ${attempts + 1}: File not ready yet...`);
+          log(`📖 Attempt ${attempts + 1}: File not ready yet...`);
           await new Promise(resolve => setTimeout(resolve, 500));
           attempts++;
         }
@@ -364,9 +365,9 @@ test('Interactive elements test for ${session.url}', async ({ page }) => {
       // Clean up
       try {
         await unlink(session.outputFile);
-        console.log('🗑️ Cleaned up temporary file');
+        log('🗑️ Cleaned up temporary file');
       } catch (error) {
-        console.log('File cleanup failed (expected):', error);
+        log('File cleanup failed (expected):', error);
       }
 
       this.sessions.delete(sessionId);
@@ -378,7 +379,7 @@ test('Interactive elements test for ${session.url}', async ({ page }) => {
       };
 
     } catch (error) {
-      console.error('❌ Failed to stop recording:', error);
+      log('❌ Failed to stop recording:', error);
       throw new Error(`레코딩 중지 실패: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
     }
   }
