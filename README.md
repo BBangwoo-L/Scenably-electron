@@ -1,210 +1,247 @@
-# 웹사이트 E2E 테스트 관리 서비스
+# Scenably - E2E 테스트 시나리오 빌더
 
-**Website E2E Test Management Service** - 웹 브라우저 자동화와 Claude AI를 결합한 웹 애플리케이션으로, 웹사이트의 End-to-End 테스트 시나리오를 쉽게 생성하고 관리할 수 있습니다.
+**Scenably**는 Playwright를 기반으로 한 데스크톱 E2E 테스트 자동화 도구입니다. 웹사이트의 End-to-End 테스트 시나리오를 직관적으로 생성하고 관리할 수 있는 Electron 데스크톱 애플리케이션입니다.
 
 ## 🚀 주요 기능
 
-1. **🌐 URL 입력 및 탐색** - 테스트할 웹사이트 URL을 입력하여 자동으로 테스트 환경 구성
-2. **🎭 Playwright 통합** - 실제 브라우저에서 인터랙티브한 E2E 시나리오 생성
-3. **💾 시나리오 저장소** - 테스트 시나리오를 데이터베이스에 저장하고 체계적으로 관리
-4. **🤖 AI 기반 편집** - Claude API를 활용하여 테스트 시나리오 코드를 지능적으로 수정
-5. **▶️ 시나리오 실행** - 저장된 시나리오를 실행하고 결과를 확인
+- **🎬 Playwright 코드 생성**: 실제 브라우저에서 사용자 인터랙션을 레코딩하여 자동으로 테스트 코드 생성
+- **🖥️ 데스크톱 애플리케이션**: 오프라인 환경에서도 동작하며 내부망에서 안전하게 사용 가능
+- **💾 로컬 데이터베이스**: SQLite를 사용한 빠르고 안전한 시나리오 관리
+- **🐛 디버그 모드**: Playwright UI 모드를 통한 단계별 테스트 디버깅
+- **🤖 AI 기반 편집**: Claude AI를 활용한 테스트 시나리오 코드 개선 (추후 구현 예정)
+- **📱 크로스 플랫폼**: Windows, macOS, Linux 지원
 
 ## 🛠 기술 스택
 
-### 코어 프레임워크
-- **Next.js 15** - App Router 아키텍처 (`src/app/` 디렉토리 구조)
-- **React 19** - TypeScript와 함께 사용
-- **Tailwind CSS 4** - 스타일링 (`tw-animate-css` 애니메이션 포함)
-- **Turbopack** - 빠른 개발 및 빌드
-- **Playwright** - E2E 테스트 자동화
-- **Claude API** - AI 기반 시나리오 수정
+### 코어 기술
+- **Electron 40** - 데스크톱 애플리케이션 프레임워크
+- **React 19** + **TypeScript** - 사용자 인터페이스
+- **Vite** - 빠른 개발 및 빌드 도구
+- **Tailwind CSS 4** - 스타일링
+- **Playwright 1.55.1** - E2E 테스트 자동화 엔진
 
-### UI 컴포넌트
-- **shadcn/ui** - "new-york" 스타일로 구성된 컴포넌트 라이브러리
-- **Radix UI** - 접근성을 고려한 프리미티브 컴포넌트
-- **Lucide React** - 아이콘 라이브러리
-
-### 상태 관리 및 폼
+### 상태 관리 및 UI
 - **Zustand** - 전역 상태 관리
-- **React Hook Form** - **Zod** 유효성 검사 및 **@hookform/resolvers**와 함께 사용
-- **next-themes** - 테마 관리
+- **React Hook Form** - 폼 상태 관리
+- **Radix UI** - 접근성을 고려한 UI 컴포넌트
+- **Sonner** - Toast 알림 시스템
 
-### 데이터 레이어
-- **Prisma** - 데이터베이스 ORM (SQLite 사용)
-- 테스트 시나리오, 실행 결과, 사용자 데이터 저장
-- API 라우트를 통한 시나리오 CRUD 작업 및 Playwright 실행
-- Claude API 통합을 통한 지능적인 시나리오 수정
+### 데이터베이스
+- **SQLite** + **better-sqlite3** - 로컬 데이터베이스
+- **electron-log** - 로그 시스템
 
 ## 📁 프로젝트 구조
 
-### 주요 애플리케이션 영역
-- **시나리오 빌더** (`src/components/scenario/`) - 테스트 시나리오 생성 및 편집 UI
-- **Playwright 통합** (`src/lib/playwright/`) - Playwright 자동화 및 실행 로직
-- **AI 서비스** (`src/lib/ai/`) - Claude API 통합 시나리오 수정
-- **데이터베이스 모델** (`src/lib/db/`) - 시나리오 및 테스트 결과 데이터 모델
+```
+Scenably/
+├── electron/                     # Electron 메인 프로세스
+│   ├── main.ts                   # 앱 진입점 및 윈도우 관리
+│   ├── preload.ts                # 보안 컨텍스트 브릿지
+│   ├── playwright-electron-recorder.ts  # Playwright 레코딩 엔진
+│   └── playwright-electron-debug.ts     # Playwright 디버그 모드
+├── src/                          # React 렌더러 프로세스
+│   ├── components/               # UI 컴포넌트
+│   ├── lib/                      # 유틸리티 및 훅
+│   └── stores/                   # Zustand 상태 관리
+├── scripts/                      # 빌드 및 배포 스크립트
+├── browsers/                     # Playwright 브라우저 (로컬)
+└── tests/                        # 생성된 테스트 파일
+```
 
-### 주요 파일
-- `src/app/layout.tsx` - Geist 폰트가 적용된 루트 레이아웃
-- `src/app/page.tsx` - 시나리오 관리 메인 대시보드
-- `src/lib/utils.ts` - className 병합을 위한 `cn()` 포함 유틸리티 함수
-- `components.json` - 경로 별칭이 포함된 shadcn/ui 구성
+### 주요 모듈
 
-### 경로 별칭 (components.json에 구성됨)
-- `@/components` → `src/components`
-- `@/lib` → `src/lib`
-- `@/hooks` → `src/hooks`
-- `@/ui` → `src/components/ui`
+#### Electron 메인 프로세스
+- **main.ts**: 앱 라이프사이클 관리, 윈도우 생성, IPC 핸들러
+- **playwright-electron-recorder.ts**: 브라우저 레코딩 및 코드 생성
+- **playwright-electron-debug.ts**: 디버그 모드 실행
 
-## ⚙️ 환경 설정
+#### 브라우저 관리
+- 크로스 플랫폼 브라우저 자동 다운로드 및 설정
+- Windows/macOS 호환성을 위한 headless_shell 사용
+- 오프라인 환경을 위한 로컬 브라우저 패키징
 
-### 1. 의존성 설치
+## ⚙️ 설치 및 개발
+
+### 1. 저장소 클론
+```bash
+git clone https://github.com/your-username/scenably.git
+cd scenably
+```
+
+### 2. 의존성 설치
 ```bash
 npm install
 ```
 
-### 2. 환경 변수 설정
-`.env.example`을 `.env`로 복사하고 다음 항목을 구성하세요:
+이 과정에서 `postinstall` 스크립트가 자동으로 실행되어 Playwright 브라우저를 다운로드합니다.
+
+**중요**: 브라우저 파일들은 Git에 포함되지 않으므로, 프로젝트를 처음 설치할 때마다 브라우저 다운로드가 필요합니다.
+
+### 3. 브라우저 설치 확인
+만약 브라우저 설치가 실패했다면 수동으로 설치하세요:
+```bash
+# 모든 브라우저 다운로드
+npm run install-browsers
+
+# 또는 Playwright 명령어 직접 실행
+PLAYWRIGHT_BROWSERS_PATH=./browsers npx playwright install chromium
+```
+
+### 4. 환경 변수 설정 (선택사항)
+**주의**: AI 기능은 현재 구현되지 않았습니다. 추후 Claude API 연동 예정입니다.
 ```env
-DATABASE_URL="file:./dev.db"  # SQLite 데이터베이스 경로
-CLAUDE_API_KEY="your-claude-api-key"  # AI 기능을 위한 Claude API 키
+# 추후 구현 예정
+CLAUDE_API_KEY=your-claude-api-key-here
 ```
 
-### 3. 데이터베이스 초기화
+### 5. 개발 서버 시작
 ```bash
-npx electron-rebuild
+npm run electron:dev
 ```
-
-### 4. 개발 서버 시작
-```bash
-npm run dev
-```
-
-브라우저에서 [http://localhost:3000](http://localhost:3000)을 열어 애플리케이션을 확인하세요.
 
 ## 🔧 개발 명령어
 
-- `npm run dev` - Turbopack을 사용한 개발 서버 시작 (http://localhost:3000)
-- `npm run build` - Turbopack을 사용한 프로덕션 애플리케이션 빌드
-- `npm run start` - 프로덕션 서버 시작
-- `npm run lint` - 코드 품질 검사를 위한 ESLint 실행
-- `npm run db:generate` - Prisma 클라이언트 생성
-- `npm run db:push` - 스키마 변경사항을 데이터베이스에 적용
-- `npm run db:migrate` - 데이터베이스 마이그레이션 생성 및 적용
-- `npm run test:e2e` - Playwright E2E 테스트 실행
+```bash
+# 개발 모드 실행 (Vite + Electron)
+npm run electron:dev
 
-## 🔌 API 엔드포인트
+# 렌더러만 개발 서버로 실행 (브라우저에서 확인)
+npm run dev:renderer
 
-### 시나리오 관리
-- `GET /api/scenarios` - 최근 실행 결과와 함께 모든 시나리오 목록 조회
-- `POST /api/scenarios` - 새로운 시나리오 생성
-- `GET /api/scenarios/[id]` - 실행 기록과 함께 특정 시나리오 조회
-- `PUT /api/scenarios/[id]` - 시나리오 업데이트
-- `DELETE /api/scenarios/[id]` - 시나리오 삭제
-- `POST /api/scenarios/[id]/execute` - 시나리오 테스트 실행
-- `POST /api/scenarios/[id]/debug` - 디버그 모드로 시나리오 실행
+# Electron 메인 프로세스 빌드
+npm run build:electron
 
-### 레코딩 및 코드 생성
-- `POST /api/recording/start` - Playwright 레코딩 세션 시작
-- `POST /api/recording/stop` - 레코딩 중지 및 생성된 코드 반환
-- `GET /api/recording/stop?sessionId=` - 레코딩 세션 상태 조회
+# 렌더러 프로세스 빌드
+npm run build:renderer
 
-### AI 통합
-- `POST /api/ai/modify` - Claude API를 사용한 시나리오 코드 수정
+# 배포용 빌드
+npm run dist              # 모든 플랫폼
+npm run dist:win          # Windows만
+npm run dist:mac          # macOS만
+npm run dist:linux        # Linux만
 
-## 📖 사용법
+# 브라우저 다운로드 (수동)
+npm run install-browsers
 
-### 방법 1: 🎯 인터랙티브 템플릿 생성 (초보자 추천)
-1. **URL 입력**: 테스트할 웹사이트 URL 입력
-2. **템플릿 생성**: "템플릿" 탭 → "인터랙티브 템플릿 생성" 클릭
-3. **코드 커스터마이징**: 생성된 템플릿을 특정 테스트 케이스에 맞게 편집
-4. **AI 향상**: "AI로 수정하기"를 사용하여 추가 개선
-5. **저장 및 실행**: 시나리오 저장 후 테스트 실행
+# 코드 품질 검사
+npm run lint
 
-**특징:**
-- 포괄적인 인터랙티브 템플릿 생성
-- 일반적인 테스트 패턴 포함 (폼, 네비게이션, 접근성)
-- 커스터마이징을 위한 훌륭한 시작점
-- 브라우저 자동화 불필요
+# E2E 테스트 실행
+npm run test:e2e
+```
 
-### 방법 2: 🎬 직접 브라우저 레코딩 (복잡한 상호작용에 최적)
-1. **URL 입력**: 테스트할 웹사이트 URL 입력
-2. **레코딩 시작**: "레코딩" 탭 → "레코딩 시작" 클릭
-3. **상호작용**: 브라우저가 열리면 → 웹사이트에서 액션 수행
-4. **레코딩 중지**: "저장 후 중지" 또는 "취소" 선택 → 코드 자동 생성
-5. **저장 및 실행**: 생성된 코드 검토, 시나리오 저장, 테스트 실행
+## 📖 사용 방법
 
-**특징:**
-- 실제 사용자 상호작용을 위한 실제 브라우저 열기
-- 클릭, 폼 입력, 네비게이션 레코딩
-- 정확한 선택자 및 대기 조건 생성
-- 복잡한 사용자 워크플로우에 완벽
+### 1. 🎬 브라우저 레코딩 (권장)
+1. **시나리오 생성**: "새 시나리오" 버튼으로 시나리오 생성
+2. **URL 입력**: 테스트할 웹사이트 URL 입력
+3. **레코딩 시작**: "코드 생성" 버튼 클릭
+4. **브라우저 조작**: 자동으로 열리는 브라우저에서 원하는 액션 수행
+5. **코드 생성**: 레코딩 완료 후 자동으로 Playwright 코드 생성
+6. **시나리오 저장**: 생성된 코드를 검토하고 저장
 
-**레코딩 중 옵션:**
-- **저장 후 중지**: 레코딩 내용을 코드로 변환하여 저장
-- **취소**: 레코딩을 중단하고 내용을 저장하지 않음
-- **강제 리셋**: 세션이 문제가 있을 때 UI 상태 강제 초기화
+### 2. ✏️ 수동 코드 작성
+1. **빈 시나리오 생성**: 새 시나리오 생성
+2. **직접 코딩**: Playwright 테스트 코드를 직접 작성
+3. **AI 개선**: Claude AI를 통해 코드 개선 (추후 구현 예정)
 
-### 방법 3: ✏️ 수동 코드 작성 (고급 사용자용)
-1. **URL 입력**: 테스트할 웹사이트 URL 입력
-2. **코드 작성**: Playwright 테스트 코드 직접 작성
-3. **AI 향상**: "AI로 수정하기"를 사용하여 개선
-4. **저장 및 실행**: 시나리오 저장 후 테스트 실행
+### 3. 🐛 디버그 및 실행
+- **실행**: "시나리오 실행" 버튼으로 테스트 실행
+- **디버그**: "디버그" 버튼으로 Playwright UI 모드에서 단계별 디버깅
+- **결과 확인**: 실행 결과 및 스크린샷 확인
 
-**특징:**
-- 테스트 코드의 완전한 제어
-- 사용자 정의 테스트 로직 및 어설션
-- 고급 Playwright 기능 사용
-- Playwright 지식 필요
+## 🏗 배포
 
-## 🐛 디버그 기능
+### 개발용 빌드 생성
+```bash
+# Windows용 실행 파일 생성
+npm run dist:win
+# → release/Scenably Setup 0.1.0.exe
 
-테스트가 실패한 경우 "디버그" 버튼을 클릭하여:
-- Playwright UI 모드에서 단계별 테스트 실행
-- 브라우저에서 직접 상호작용하며 문제 해결
-- 실시간으로 테스트 단계 확인 및 수정
+# macOS용 앱 생성 (macOS에서만 가능)
+npm run dist:mac
+# → release/Scenably-0.1.0.dmg
 
-## 🎨 코드 스타일
+# Linux용 AppImage 생성
+npm run dist:linux
+# → release/Scenably-0.1.0.AppImage
+```
 
-- Next.js core-web-vitals 및 TypeScript 규칙이 적용된 ESLint
-- 조건부 className 처리를 위해 `clsx` 및 `tailwind-merge` 사용
-- Radix UI 프리미티브와 shadcn/ui 패턴을 따르는 컴포넌트 아키텍처
+### 사용자 설치
+- **Windows**: `.exe` 파일 실행하여 설치
+- **macOS**: `.dmg` 파일 열어서 Applications 폴더로 드래그
+- **Linux**: `.AppImage` 파일에 실행 권한 부여 후 실행
+
+## 🗃️ 데이터베이스
+
+앱은 사용자별 데이터 디렉토리에 SQLite 데이터베이스를 생성합니다:
+
+- **Windows**: `%APPDATA%\Scenably\database\scenably.db`
+- **macOS**: `~/Library/Application Support/Scenably/database/scenably.db`
+- **Linux**: `~/.config/Scenably/database/scenably.db`
+
+## 🔧 고급 설정
+
+### 브라우저 설정
+앱은 다음 우선순위로 브라우저를 찾아 사용합니다:
+1. 앱 내장 Playwright 브라우저 (`browsers/` 디렉토리)
+2. 시스템에 설치된 Chrome/Chromium
+3. Headless Chrome Shell (크로스 플랫폼 호환용)
+
+### 로그 파일
+실행 로그는 다음 위치에 저장됩니다:
+- **Windows**: `%APPDATA%\Scenably\logs\`
+- **macOS**: `~/Library/Logs/Scenably/`
+- **Linux**: `~/.config/Scenably/logs/`
+
+## 🐛 문제 해결
+
+### 일반적인 문제
+
+**1. 브라우저 실행 실패**
+```bash
+# 브라우저 재설치
+npm run install-browsers
+```
+
+**2. 데이터베이스 오류**
+- 앱 데이터 폴더의 `database/` 디렉토리 삭제 후 앱 재시작
+
+**3. 모듈 오류 (개발 환경)**
+```bash
+# 네이티브 모듈 재빌드
+npm run electron:rebuild
+# 또는
+npx electron-rebuild
+```
+
+**4. 레코딩 세션 멈춤**
+- 앱에서 "강제 리셋" 버튼 사용
+- 또는 브라우저 프로세스 수동 종료
+
+### 개발자 모드
+개발 중 문제가 있을 때 Electron DevTools를 열어 디버깅할 수 있습니다:
+- **Windows/Linux**: `Ctrl + Shift + I`
+- **macOS**: `Cmd + Option + I`
 
 ## 🤝 기여하기
 
-1. 프로젝트를 포크하세요
-2. 기능 브랜치를 생성하세요 (`git checkout -b feature/amazing-feature`)
-3. 변경사항을 커밋하세요 (`git commit -m 'Add some amazing feature'`)
-4. 브랜치에 푸시하세요 (`git push origin feature/amazing-feature`)
-5. Pull Request를 열어주세요
+1. 프로젝트 포크
+2. 기능 브랜치 생성 (`git checkout -b feature/amazing-feature`)
+3. 변경사항 커밋 (`git commit -m 'Add amazing feature'`)
+4. 브랜치에 푸시 (`git push origin feature/amazing-feature`)
+5. Pull Request 생성
 
 ## 📄 라이선스
 
-이 프로젝트는 MIT 라이선스 하에 있습니다. 자세한 내용은 `LICENSE` 파일을 참조하세요.
+MIT License - 자세한 내용은 [LICENSE](LICENSE) 파일을 참조하세요.
 
-## 🆘 문제 해결
+## 🔗 관련 링크
 
-### 일반적인 문제들
+- [Playwright 공식 문서](https://playwright.dev/)
+- [Electron 공식 문서](https://www.electronjs.org/)
+- [Claude AI API](https://docs.anthropic.com/)
 
-1. **레코딩 브라우저가 닫히지 않는 경우**
-   - "강제 리셋" 버튼 사용
-   - 수동으로 브라우저 프로세스 종료
+---
 
-2. **AI 수정이 작동하지 않는 경우**
-   - `CLAUDE_API_KEY` 환경 변수 확인
-   - API 키의 유효성 및 권한 확인
-
-3. **데이터베이스 연결 오류**
-   - `DATABASE_URL` 환경 변수 확인
-   - `npm run db:push` 명령어로 데이터베이스 재초기화
-
-4. **컴포넌트 리렌더링으로 인한 테스트 실패**
-   - 문제: URL path 변경 시 컴포넌트가 리렌더링되어 레코딩된 시나리오 코드가 진행되는 동안 컴포넌트가 다시 그려져 값이 사라지는 현상
-   - 해결: 특정 문구나 요소가 렌더링될 때까지 기다리는 방식으로 해결
-   ```typescript
-   // 예시: 특정 텍스트가 나타날 때까지 기다리기
-   await page.getByText('특정 문구').waitFor();
-   ```
-   - 주의사항: Toast 팝업의 경우 팝업이 닫힐 때까지 기다려야 하는 단점이 있음
-
-더 많은 도움이 필요하시면 GitHub Issues에 문의해주세요.
+**Scenably**로 웹 애플리케이션의 품질을 향상시키고 테스트 자동화를 경험해보세요! 🚀

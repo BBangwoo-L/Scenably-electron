@@ -1,0 +1,444 @@
+# Scenably - 앱 아키텍처 문서
+
+## 🏗 전체 시스템 아키텍처
+
+Scenably는 Electron 기반의 데스크톱 애플리케이션으로, React 렌더러와 Node.js 메인 프로세스가 협력하여 Playwright 기반의 E2E 테스트 시나리오를 생성하고 관리합니다.
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    Scenably Desktop App                 │
+├─────────────────────────────────────────────────────────┤
+│  Electron Main Process (Node.js)                       │
+│  ├── Window Management & App Lifecycle                 │
+│  ├── IPC Handlers (Database, Playwright)               │
+│  ├── Playwright Recording Engine                       │
+│  ├── Playwright Debug Engine                           │
+│  └── Local SQLite Database                             │
+├─────────────────────────────────────────────────────────┤
+│  Electron Renderer Process (Chromium)                  │
+│  ├── React 19 + TypeScript UI                          │
+│  ├── Vite HMR Development Server                       │
+│  ├── Zustand State Management                          │
+│  └── Tailwind CSS + Radix UI Components                │
+├─────────────────────────────────────────────────────────┤
+│  External Processes                                     │
+│  ├── Playwright Browser Instances                      │
+│  ├── Generated Test Execution                          │
+│  └── Claude AI API (Optional)                          │
+└─────────────────────────────────────────────────────────┘
+```
+
+## 📁 디렉터리 구조 상세
+
+```
+Scenably/
+├── electron/                           # Electron 메인 프로세스
+│   ├── main.ts                         # 앱 진입점, 윈도우 관리, IPC 설정
+│   ├── preload.ts                      # 보안 컨텍스트 브릿지 (렌더러↔메인)
+│   ├── playwright-electron-recorder.ts # Playwright 레코딩 엔진
+│   ├── playwright-electron-debug.ts    # Playwright 디버그 모드 엔진
+│   └── tsconfig.json                   # Electron용 TypeScript 설정
+│
+├── src/                                # React 렌더러 프로세스
+│   ├── app/                            # 라우팅 기반 페이지 구조
+│   │   ├── page.tsx                    # 메인 대시보드 (시나리오 목록 & 퀵스타트)
+│   │   ├── layout.tsx                  # 루트 레이아웃 (네비게이션, 테마)
+│   │   ├── scenario/
+│   │   │   ├── new/page.tsx            # 새 시나리오 생성 페이지
+│   │   │   └── edit/page.tsx           # 기존 시나리오 편집 페이지
+│   │   └── test-optimizer/page.tsx     # Playwright 코드 최적화 도구
+│   ├── features/                       # 기능별 컴포넌트 그룹
+│   │   ├── layout/components/          # 앱 헤더, 네비게이션 등
+│   │   ├── recording/components/       # 레코딩 컨트롤 UI
+│   │   └── scenarios/components/       # 시나리오 빌더, 에디터, 실행기
+│   ├── shared/                         # 공유 컴포넌트
+│   │   ├── components/                 # 재사용 가능한 공통 컴포넌트
+│   │   └── ui/                         # shadcn/ui 기본 UI 컴포넌트
+│   ├── lib/                            # 유틸리티 함수들
+│   ├── stores/                         # Zustand 상태 관리 (추후 구현)
+│   ├── types/                          # TypeScript 타입 정의
+│   └── main.tsx                        # React 앱 진입점
+│
+├── scripts/                            # 빌드 & 배포 스크립트
+│   ├── download-all-browsers.js        # 모든 플랫폼 브라우저 다운로드
+│   ├── ensure-windows-browsers.js      # Windows 브라우저 확인 & 설치
+│   ├── create-windows-chrome-wrapper.js # Windows 호환성 래퍼 생성
+│   └── copy-browsers.js                # 브라우저 파일 복사
+│
+├── browsers/                           # Playwright 브라우저 바이너리
+│   ├── chromium-1193/                  # Chromium 브라우저
+│   ├── chromium_headless_shell-1193/   # Headless Shell (크로스 플랫폼)
+│   └── (기타 브라우저들...)
+│
+├── tests/                              # 생성된 테스트 파일 저장소
+│   ├── scenarios/                      # 저장된 시나리오 파일들
+│   └── debug/                          # 디버그 세션 임시 파일
+│
+└── dist-electron/                      # 빌드된 Electron 파일
+    ├── main.js                         # 컴파일된 메인 프로세스
+    └── preload.js                      # 컴파일된 preload 스크립트
+```
+
+## 🔄 프로세스간 통신 (IPC) 아키텍처
+
+### IPC 채널 구조
+
+```typescript
+// 메인 프로세스 → 렌더러 프로세스 (Preload를 통해)
+interface ElectronAPI {
+  // 데이터베이스 작업
+  getScenarios: () => Promise<Scenario[]>
+  createScenario: (data: ScenarioData) => Promise<Scenario>
+  updateScenario: (id: string, data: Partial<ScenarioData>) => Promise<Scenario>
+  deleteScenario: (id: string) => Promise<void>
+
+  // Playwright 작업
+  startRecording: (url: string, options?: RecordingOptions) => Promise<RecordingSession>
+  stopRecording: (sessionId: string) => Promise<GeneratedCode>
+  executeScenario: (code: string, options?: ExecutionOptions) => Promise<ExecutionResult>
+  debugScenario: (code: string, options?: DebugOptions) => Promise<void>
+
+  // 파일 시스템
+  saveScenarioToFile: (scenario: Scenario) => Promise<string>
+  loadScenarioFromFile: () => Promise<Scenario>
+
+  // AI 통합 (추후 구현 예정)
+  enhanceWithAI: (code: string, prompt: string) => Promise<string>
+}
+```
+
+### 데이터 흐름
+
+```
+렌더러 프로세스 (React)
+    ↓ IPC 호출
+Preload 스크립트 (보안 브릿지)
+    ↓ IPC 포워딩
+메인 프로세스 (Node.js)
+    ↓ 데이터베이스/파일시스템/Playwright 작업
+결과 반환
+    ↑ IPC 응답
+렌더러 프로세스 (UI 업데이트)
+```
+
+## 🎭 Playwright 통합 아키텍처
+
+### 레코딩 엔진 (`playwright-electron-recorder.ts`)
+
+```typescript
+class PlaywrightElectronRecorder {
+  // 브라우저 실행 및 코드 생성
+  private static async launchBrowserForRecording(url: string)
+
+  // 크로스 플랫폼 브라우저 경로 감지
+  private static getAvailableChromiumExecutablePath(): string | null
+
+  // 코드 생성 및 정리
+  private static cleanupGeneratedCode(code: string): string
+}
+```
+
+**브라우저 감지 우선순위:**
+1. 앱 번들된 Playwright 브라우저 (`browsers/chromium-*`)
+2. Headless Shell (`browsers/chromium_headless_shell-*`)
+3. 시스템 Chrome (`C:\Program Files\Google\Chrome\...`)
+4. 시스템 Chromium (Linux/macOS)
+
+### 디버그 엔진 (`playwright-electron-debug.ts`)
+
+```typescript
+class PlaywrightElectronDebug {
+  // UI 모드로 테스트 실행
+  public static async debugScenario(code: string, url: string)
+
+  // 임시 파일 생성 및 관리
+  private static createTempTestFile(code: string): string
+
+  // 디버그 세션 환경 설정
+  private static setupDebugEnvironment()
+}
+```
+
+## 💾 데이터베이스 아키텍처
+
+### SQLite 로컬 데이터베이스
+
+**위치:**
+- Windows: `%APPDATA%\Scenably\database\scenably.db`
+- macOS: `~/Library/Application Support/Scenably/database/scenably.db`
+- Linux: `~/.config/Scenably/database/scenably.db`
+
+**스키마 (주요 테이블):**
+```sql
+-- 시나리오 정보
+CREATE TABLE scenarios (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  description TEXT,
+  url TEXT NOT NULL,
+  code TEXT NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 실행 결과
+CREATE TABLE execution_results (
+  id TEXT PRIMARY KEY,
+  scenario_id TEXT NOT NULL,
+  status TEXT NOT NULL, -- 'success', 'failed', 'timeout'
+  output TEXT,
+  screenshot_path TEXT,
+  execution_time INTEGER,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (scenario_id) REFERENCES scenarios (id)
+);
+
+-- 레코딩 세션
+CREATE TABLE recording_sessions (
+  id TEXT PRIMARY KEY,
+  status TEXT NOT NULL, -- 'active', 'completed', 'failed'
+  url TEXT NOT NULL,
+  generated_code TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### 데이터베이스 초기화
+
+```typescript
+// electron/main.ts
+async function initializeDatabase() {
+  const userDataPath = app.getPath('userData');
+  const dbPath = path.join(userDataPath, 'database', 'scenably.db');
+
+  // 데이터베이스 디렉토리 생성
+  await fs.ensureDir(path.dirname(dbPath));
+
+  // 환경 변수 설정 (Prisma 등에서 사용)
+  process.env.DATABASE_URL = `file:${dbPath}`;
+
+  // 스키마 마이그레이션 실행
+  await runDatabaseMigrations();
+}
+```
+
+## 📄 주요 페이지 구조
+
+### 메인 대시보드 (`src/app/page.tsx`)
+- **기능**: 시나리오 목록 표시, 퀵스타트 가이드 제공
+- **컴포넌트**: ScenarioList, QuickStartGuide
+- **주요 기능**:
+  - 저장된 모든 시나리오 목록 조회
+  - "새 시나리오 생성" 버튼으로 시나리오 생성 페이지 이동
+  - 초보자용 사용법 가이드
+
+### 시나리오 생성 페이지 (`src/app/scenario/new/page.tsx`)
+- **기능**: 새로운 E2E 테스트 시나리오 생성
+- **컴포넌트**: ScenarioBuilder
+- **주요 기능**:
+  - URL 입력 및 시나리오 정보 설정
+  - Playwright 브라우저 레코딩
+  - 코드 에디터를 통한 수동 작성
+  - Electron 환경 체크 (웹에서 접근 시 경고)
+
+### 시나리오 편집 페이지 (`src/app/scenario/edit/page.tsx`)
+- **기능**: 기존 시나리오 수정 및 관리
+- **컴포넌트**: ScenarioBuilder (scenarioId prop 포함)
+- **주요 기능**:
+  - 기존 시나리오 데이터 로드
+  - 코드 수정 및 재테스트
+  - 실행 결과 확인
+
+### 코드 최적화 페이지 (`src/app/test-optimizer/page.tsx`)
+- **기능**: Playwright codegen 생성 코드를 안정적인 테스트로 변환
+- **컴포넌트**: PlaywrightCodeOptimizer
+- **주요 기능**:
+  - Raw 레코딩 코드 → 안정적 테스트 코드 변환
+  - 대기 조건 추가, 선택자 최적화
+  - 최적화된 코드 저장 및 원래 페이지로 복귀
+
+## 🎨 프론트엔드 아키텍처
+
+### React + Zustand 상태 관리
+
+```typescript
+// stores/scenario.ts
+interface ScenarioStore {
+  scenarios: Scenario[]
+  currentScenario: Scenario | null
+
+  // Actions
+  loadScenarios: () => Promise<void>
+  createScenario: (data: ScenarioData) => Promise<void>
+  updateScenario: (id: string, data: Partial<ScenarioData>) => Promise<void>
+  deleteScenario: (id: string) => Promise<void>
+  setCurrentScenario: (scenario: Scenario | null) => void
+}
+
+// stores/recording.ts
+interface RecordingStore {
+  isRecording: boolean
+  recordingSession: RecordingSession | null
+
+  // Actions
+  startRecording: (url: string) => Promise<void>
+  stopRecording: () => Promise<string>
+  resetRecording: () => void
+}
+```
+
+### 컴포넌트 계층 구조
+
+```
+App.tsx
+├── Layout/
+│   ├── Sidebar.tsx (시나리오 목록)
+│   ├── Header.tsx (앱 제목, 설정)
+│   └── StatusBar.tsx (상태 표시)
+├── Scenario/
+│   ├── ScenarioList.tsx (시나리오 목록)
+│   ├── ScenarioEditor.tsx (코드 편집기)
+│   ├── ScenarioRecorder.tsx (레코딩 컨트롤)
+│   └── ScenarioExecutor.tsx (실행 & 디버그)
+└── UI/
+    ├── Button.tsx, Dialog.tsx... (shadcn/ui 컴포넌트)
+    └── Toast.tsx (알림 시스템)
+```
+
+## 🔧 빌드 & 배포 아키텍처
+
+### 개발 환경
+
+```bash
+npm run electron:dev
+# ↓
+# 1. Vite로 React 앱 빌드 (Hot Reload)
+# 2. TypeScript로 Electron 메인 프로세스 컴파일
+# 3. Electron 실행 (개발 모드)
+```
+
+### 프로덕션 빌드
+
+```bash
+npm run dist:win
+# ↓
+# 1. React 앱 프로덕션 빌드 (Vite)
+# 2. Electron 메인 프로세스 빌드 (TypeScript)
+# 3. 브라우저 확인 및 설치 (ensure-windows-browsers.js)
+# 4. Windows 호환성 래퍼 생성 (create-windows-chrome-wrapper.js)
+# 5. Electron Builder로 배포 패키지 생성
+```
+
+### 패키징 전략
+
+```json
+// package.json - electron-builder 설정
+{
+  "build": {
+    "files": [
+      "dist-electron/**/*",  // 빌드된 Electron 파일
+      "assets/**/*",         // 앱 에셋
+      "browsers/**/*",       // Playwright 브라우저
+      "node_modules/@playwright/**/*",
+      "node_modules/playwright/**/*",
+      "node_modules/better-sqlite3/**/*"
+    ],
+    "asarUnpack": [
+      "node_modules/@playwright/**",
+      "node_modules/playwright/**"
+    ]
+  }
+}
+```
+
+## 🌐 크로스 플랫폼 호환성
+
+### 브라우저 호환성 전략
+
+1. **macOS 개발/빌드**:
+   - 기본적으로 `chromium-1187` (macOS) 다운로드
+   - Windows 빌드 시 `chromium-1193` (Windows) 추가 설치
+   - Headless Shell을 Windows Chrome으로 래핑
+
+2. **Windows 빌드**:
+   - `ensure-windows-browsers.js`로 Windows 브라우저 확인
+   - `create-windows-chrome-wrapper.js`로 호환성 래퍼 생성
+   - 실제 Windows에서 빌드 시 네이티브 브라우저 사용
+
+3. **크로스 플랫폼 실행**:
+   ```typescript
+   // 브라우저 감지 우선순위
+   const browserPaths = [
+     // 1. 번들된 Playwright 브라우저
+     path.join(browserPath, 'chromium-1193', 'chrome-win', 'chrome.exe'),
+     // 2. Headless Shell (크로스 플랫폼)
+     path.join(browserPath, 'chromium_headless_shell-1193', 'chrome-mac', 'headless_shell'),
+     // 3. 시스템 Chrome
+     'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'
+   ];
+   ```
+
+### 파일 시스템 경로 처리
+
+```typescript
+// 플랫폼별 사용자 데이터 경로
+const getUserDataPath = (): string => {
+  switch (process.platform) {
+    case 'win32': return path.join(os.homedir(), 'AppData', 'Roaming', 'Scenably')
+    case 'darwin': return path.join(os.homedir(), 'Library', 'Application Support', 'Scenably')
+    case 'linux': return path.join(os.homedir(), '.config', 'Scenably')
+    default: return path.join(os.homedir(), '.scenably')
+  }
+}
+```
+
+## 🚀 성능 최적화
+
+### 번들 크기 최적화
+- Playwright 브라우저만 포함 (Firefox, Safari 제외)
+- ASAR 압축으로 파일 수 감소
+- 불필요한 개발 의존성 제외
+
+### 메모리 관리
+- Playwright 프로세스 자동 정리
+- 레코딩 세션 타임아웃 처리 (구현 필요)
+- SQLite 연결 풀링
+
+### 스타트업 최적화
+- 데이터베이스 지연 초기화
+- 브라우저 지연 로딩
+- UI 우선 렌더링
+
+## 🔐 보안 고려사항
+
+### Electron 보안
+- Context Isolation 활성화
+- Node Integration 비활성화
+- Preload 스크립트를 통한 안전한 IPC
+- CSP (Content Security Policy) 적용
+
+### 데이터 보안
+- 로컬 데이터베이스 (외부 서버 불필요)
+- 사용자 데이터 앱 샌드박스 내 저장
+- API 키 환경 변수 관리
+
+## 🔄 업데이트 전략
+
+### 자동 업데이트 (향후 계획)
+```typescript
+// electron-updater를 통한 자동 업데이트
+import { autoUpdater } from 'electron-updater'
+
+autoUpdater.checkForUpdatesAndNotify()
+```
+
+### 데이터베이스 마이그레이션
+```typescript
+// 앱 버전 업데이트 시 DB 스키마 마이그레이션
+const migrationManager = new DatabaseMigrationManager()
+await migrationManager.runMigrations(currentVersion, targetVersion)
+```
+
+---
+
+이 아키텍처는 확장성, 유지보수성, 크로스 플랫폼 호환성을 고려하여 설계되었으며, Electron의 보안 모범 사례를 따릅니다.

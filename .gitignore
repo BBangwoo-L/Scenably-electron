@@ -58,3 +58,11 @@ next-env.d.ts
 # electron build output
 /release/
 /dist-electron/
+
+# playwright browsers (large files, downloaded on install)
+/browsers/
+/tests/debug/
+
+# temporary files
+*.tmp
+*.log
