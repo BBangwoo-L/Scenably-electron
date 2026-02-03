@@ -72,9 +72,9 @@ export function ScenarioList() {
   const handleDebug = async (scenarioId: string) => {
     try {
       const result = await debugScenario(scenarioId);
-      alert(`디버그 모드가 시작되었습니다!\n세션 ID: ${result.sessionId}\n\n브라우저에서 단계별로 테스트를 확인할 수 있습니다.`);
+      alert(`디버그 모드가 정상적으로 종료 됐습니다.!\n세션 ID: ${result.sessionId}`);
     } catch (error) {
-      alert(error instanceof Error ? error.message : "디버그 모드 시작에 실패했습니다");
+      alert(error instanceof Error ? error.message : "디버그 모드가 실패했습니다.\n 프로세스를 한 단계씩 진행하면서 실패 지점을 찾아보세요!");
     }
   };
 

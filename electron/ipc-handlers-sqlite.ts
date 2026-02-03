@@ -5,9 +5,12 @@ import { ElectronPlaywrightDebugger } from './playwright-electron-debug';
 
 // 간단하고 깔끔한 IPC 핸들러 (SQLite 기반)
 export function setupSQLiteHandlers() {
-  console.log('SQLite IPC 핸들러 설정 중...');
+  console.log('🔧 [Setup] SQLite IPC 핸들러 설정 시작...');
 
-  const db = getDatabase();
+  try {
+    console.log('🔧 [Setup] 데이터베이스 인스턴스 가져오는 중...');
+    const db = getDatabase();
+    console.log('🔧 [Setup] 데이터베이스 인스턴스 획득 성공');
 
   // 시나리오 관련 핸들러
   ipcMain.handle('scenarios:getAll', async () => {
@@ -163,13 +166,16 @@ export function setupSQLiteHandlers() {
 
   // 레코딩 관련 핸들러 (실제 Playwright Recorder 사용)
   ipcMain.handle('recording:start', async (_, { url }) => {
+    console.log('🎬 [IPC] Recording:start handler called with URL:', url);
     try {
       const sessionId = `recording-${Date.now()}`;
-      console.log(`레코딩 시작: ${url}`);
+      console.log(`🎬 [IPC] 레코딩 시작 요청: ${url}, Session ID: ${sessionId}`);
 
+      console.log(`🎬 [IPC] ElectronPlaywrightRecorder.startRecording 호출 중...`);
       const result = await ElectronPlaywrightRecorder.startRecording(url, sessionId);
+      console.log(`🎬 [IPC] ElectronPlaywrightRecorder 결과:`, result);
 
-      return {
+      const response = {
         success: true,
         data: {
           sessionId: result.sessionId,
@@ -178,8 +184,12 @@ export function setupSQLiteHandlers() {
           message: result.message
         }
       };
+
+      console.log(`🎬 [IPC] 응답 준비 완료:`, response);
+      return response;
     } catch (error) {
-      console.error('레코딩 시작 실패:', error);
+      console.error('❌ [IPC] 레코딩 시작 실패:', error);
+      console.error('❌ [IPC] 에러 스택:', error instanceof Error ? error.stack : 'No stack trace');
       return { success: false, error: error instanceof Error ? error.message : '레코딩을 시작할 수 없습니다.' };
     }
   });
@@ -231,5 +241,12 @@ ${code}
     }
   });
 
-  console.log('SQLite IPC 핸들러 설정 완료');
+    console.log('🔧 [Setup] Recording 핸들러 등록 완료');
+    console.log('✅ [Setup] SQLite IPC 핸들러 설정 완료');
+
+  } catch (error) {
+    console.error('❌ [Setup] IPC 핸들러 설정 중 오류 발생:', error);
+    console.error('❌ [Setup] 스택 트레이스:', error instanceof Error ? error.stack : 'No stack trace');
+    throw error;
+  }
 }

@@ -1,5 +1,6 @@
 import { spawn } from 'child_process';
-import { readFile, unlink, writeFile } from 'fs/promises';
+import { readFile, unlink, writeFile, access } from 'fs/promises';
+import { existsSync } from 'fs';
 import path from 'path';
 import { app } from 'electron';
 
@@ -15,6 +16,58 @@ export class ElectronPlaywrightRecorder {
   private static sessions: Map<string, RecordingSession> = new Map();
   private static tempDir = path.join(app.getPath('userData'), 'recordings');
 
+  private static findPlaywrightBinary(): string {
+    const isWin = process.platform === 'win32';
+    const executableName = isWin ? 'playwright.cmd' : 'playwright';
+    const nodeExecutable = isWin ? 'node.exe' : 'node';
+
+    // 가능한 경로들을 순서대로 확인
+    const possiblePaths = [
+      // 1. 개발 모드: 프로젝트 루트의 node_modules
+      path.resolve(process.cwd(), 'node_modules', '.bin', executableName),
+
+      // 2. ASAR 압축 해제된 경로 (asarUnpack 설정으로 압축 해제됨)
+      path.resolve(process.resourcesPath, 'app.asar.unpacked', 'node_modules', '.bin', executableName),
+      path.resolve(process.resourcesPath, 'app.asar.unpacked', 'node_modules', 'playwright', 'cli.js'),
+      path.resolve(process.resourcesPath, 'app.asar.unpacked', 'node_modules', '@playwright', 'test', 'cli.js'),
+
+      // 3. 패키징된 앱: resources/app 내부 (Windows 전용 경로 추가)
+      path.resolve(process.resourcesPath, 'app', 'node_modules', '.bin', executableName),
+      ...(isWin ? [
+        path.resolve(process.resourcesPath, 'app', 'node_modules', '.bin', 'playwright.cmd')
+      ] : []),
+
+      // 4. 패키징된 앱: extraResources (Node.js로 직접 실행)
+      path.resolve(process.resourcesPath, 'app', 'node_modules', 'playwright', 'cli.js'),
+      path.resolve(process.resourcesPath, 'app', 'node_modules', '@playwright', 'test', 'cli.js'),
+
+      // 5. Windows 패키징: 다른 가능한 경로들
+      ...(isWin ? [
+        path.resolve(process.resourcesPath, 'node_modules', '@playwright', 'test', 'cli.js'),
+        path.resolve(process.resourcesPath, 'node_modules', 'playwright', 'cli.js'),
+        path.resolve(path.dirname(process.execPath), 'resources', 'app', 'node_modules', '@playwright', 'test', 'cli.js')
+      ] : []),
+
+      // 6. 전역 설치된 playwright
+      'playwright'
+    ];
+
+    console.log('execPath:', process.execPath);
+    console.log('cwd:', process.cwd());
+    console.log('resourcesPath:', process.resourcesPath);
+
+    for (const binPath of possiblePaths) {
+      console.log(`Checking Playwright binary at: ${binPath}`);
+      if (existsSync(binPath)) {
+        console.log(`✅ Found Playwright binary: ${binPath}`);
+        return binPath;
+      }
+    }
+
+    console.log('⚠️ No Playwright binary found, using default');
+    return executableName; // 기본값으로 system PATH에서 찾기 시도
+  }
+
   static async ensureTempDirectory(): Promise<void> {
     const fs = await import('fs/promises');
     try {
@@ -27,14 +80,20 @@ export class ElectronPlaywrightRecorder {
   static async startRecording(url: string, sessionId: string): Promise<{ sessionId: string; message: string }> {
     try {
       console.log(`🎬 [Electron] Starting recording for URL: ${url}, Session: ${sessionId}`);
+      console.log(`🔍 [Debug] Process info - execPath: ${process.execPath}`);
+      console.log(`🔍 [Debug] Process info - cwd: ${process.cwd()}`);
+      console.log(`🔍 [Debug] Process info - resourcesPath: ${process.resourcesPath}`);
+      console.log(`🔍 [Debug] Process info - platform: ${process.platform}`);
 
       await this.ensureTempDirectory();
+      console.log(`📁 [Debug] Temp directory ensured: ${this.tempDir}`);
 
       if (this.sessions.has(sessionId)) {
         throw new Error('이미 활성화된 레코딩 세션이 있습니다');
       }
 
       const outputFile = path.join(this.tempDir, `recording-${sessionId}.spec.ts`);
+      console.log(`📄 [Debug] Output file: ${outputFile}`);
 
       // Create session object
       const session: RecordingSession = {
@@ -45,11 +104,14 @@ export class ElectronPlaywrightRecorder {
       };
 
       this.sessions.set(sessionId, session);
+      console.log(`📝 [Debug] Session created: ${JSON.stringify(session, null, 2)}`);
 
       // Playwright process를 비동기로 시작하고 즉시 리턴
+      console.log(`🚀 [Debug] Starting Playwright process asynchronously...`);
       this.startPlaywrightProcessAsync(session);
 
       session.status = 'recording';
+      console.log(`✅ [Debug] Recording session status updated to 'recording'`);
 
       return {
         sessionId,
@@ -81,35 +143,60 @@ export class ElectronPlaywrightRecorder {
 
   private static async tryPlaywrightCodegen(session: RecordingSession): Promise<boolean> {
     return new Promise((resolve) => {
-      console.log('🚀 Trying Playwright codegen...');
+      console.log('🚀 [Debug] Trying Playwright codegen...');
 
-      const playwrightBin = path.resolve(
-          process.cwd(),
-          'node_modules',
-          '.bin',
-          process.platform === 'win32' ? 'playwright.cmd' : 'playwright'
-      );
+      // 패키징된 앱과 개발 모드 모두 지원하는 경로 탐지
+      console.log('🔍 [Debug] Finding Playwright binary...');
+      const playwrightBin = this.findPlaywrightBinary();
+      console.log(`✅ [Debug] Found Playwright binary: ${playwrightBin}`);
 
-      const command = [
-        'codegen',
-        '--browser', 'chromium',
-        '--output', session.outputFile,
-        '--target', 'javascript',
-        session.url
-      ];
+      const isNodeJsScript = playwrightBin.endsWith('.js');
+      console.log(`🗋 [Debug] Is Node.js script: ${isNodeJsScript}`);
+
+      let command: string[];
+      let executable: string;
+
+      if (isNodeJsScript) {
+        // Node.js 스크립트로 실행
+        executable = 'node';
+        command = [
+          playwrightBin,
+          'codegen',
+          '--browser', 'chromium',
+          '--output', session.outputFile,
+          '--target', 'javascript',
+          session.url
+        ];
+      } else {
+        // 바이너리로 실행
+        executable = playwrightBin;
+        command = [
+          'codegen',
+          '--browser', 'chromium',
+          '--output', session.outputFile,
+          '--target', 'javascript',
+          session.url
+        ];
+      }
 
       console.log('execPath:', process.execPath);
       console.log('cwd:', process.cwd());
       console.log('resourcesPath:', process.resourcesPath);
+      console.log('Using executable:', executable);
+      console.log('Command args:', command);
 
-      const childProcess = spawn(playwrightBin, command, {
+      const childProcess = spawn(executable, command, {
         cwd: process.cwd(), // Use current working directory instead of app path
         stdio: ['ignore', 'pipe', 'pipe'],
         detached: false, // Keep attached to parent process
         env: {
           ...process.env,
           NODE_ENV: 'development',
-          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '0'
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '0',
+          // Windows용 추가 환경변수
+          PLAYWRIGHT_BROWSERS_PATH: process.platform === 'win32' ?
+            path.resolve(process.resourcesPath, 'browsers') :
+            process.env.PLAYWRIGHT_BROWSERS_PATH
         }
       });
 
@@ -139,7 +226,12 @@ export class ElectronPlaywrightRecorder {
       });
 
       childProcess.on('error', (error) => {
-        console.error('❌ Playwright spawn error:', error);
+        console.error('❌ [Debug] Playwright spawn error details:');
+        console.error(`❌ [Debug] Error name: ${error.name}`);
+        console.error(`❌ [Debug] Error message: ${error.message}`);
+        console.error(`❌ [Debug] Error stack: ${error.stack}`);
+        console.error(`❌ [Debug] Used executable: ${executable}`);
+        console.error(`❌ [Debug] Used command: ${JSON.stringify(command)}`);
         resolve(false);
       });
 
