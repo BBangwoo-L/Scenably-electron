@@ -1,9 +1,20 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 const electron_1 = require("electron");
 const path_1 = require("path");
+const electron_log_1 = __importDefault(require("electron-log"));
 const ipc_handlers_sqlite_1 = require("./ipc-handlers-sqlite");
 const database_sqlite_1 = require("./database-sqlite");
+// electron-log 설정
+electron_log_1.default.info('🚀 Scenably Electron Main Process Started');
+electron_log_1.default.info(`🔍 Process info - execPath: ${process.execPath}`);
+electron_log_1.default.info(`🔍 Process info - cwd: ${process.cwd()}`);
+electron_log_1.default.info(`🔍 Process info - platform: ${process.platform}`);
+electron_log_1.default.info(`🔍 Process info - resourcesPath: ${process.resourcesPath}`);
+electron_log_1.default.info(`🔍 Process info - NODE_ENV: ${process.env.NODE_ENV}`);
 // SQLite 데이터베이스는 자동으로 초기화됩니다
 const isDevelopment = process.env.NODE_ENV === 'development';
 let mainWindow = null;
@@ -35,14 +46,21 @@ function createWindow() {
 }
 electron_1.app.whenReady().then(async () => {
     try {
+        electron_log_1.default.info('🏁 Scenably 앱 시작 중...');
         console.log('Scenably 앱 시작 중...');
         // SQLite IPC 핸들러 설정
+        electron_log_1.default.info('⚙️ SQLite IPC 핸들러 설정 시작...');
         (0, ipc_handlers_sqlite_1.setupSQLiteHandlers)();
+        electron_log_1.default.info('✅ SQLite IPC 핸들러 설정 완료');
         // 메인 윈도우 생성
+        electron_log_1.default.info('🪟 메인 윈도우 생성 시작...');
         createWindow();
+        electron_log_1.default.info('✅ 메인 윈도우 생성 완료');
+        electron_log_1.default.info('🎉 앱 초기화 완료');
         console.log('앱 초기화 완료');
     }
     catch (error) {
+        electron_log_1.default.error('❌ 앱 초기화 실패:', error);
         console.error('앱 초기화 실패:', error);
         // 에러가 있어도 앱은 실행
         createWindow();

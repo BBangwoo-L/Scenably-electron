@@ -3,7 +3,13 @@ import { readFile, unlink, writeFile, access } from 'fs/promises';
 import { existsSync } from 'fs';
 import path from 'path';
 import { app } from 'electron';
-import { log } from "electron-log";
+import electronLog from "electron-log";
+
+// 기존 log 함수와 electron-log를 결합
+const log = (message?: any, ...optionalParams: any[]) => {
+  console.log(message, ...optionalParams);
+  electronLog.info(message, ...optionalParams);
+};
 
 interface RecordingSession {
   sessionId: string;

@@ -1,4 +1,5 @@
 import { ipcMain } from 'electron';
+import log from 'electron-log';
 import { getDatabase } from './database-sqlite';
 import { ElectronPlaywrightRecorder } from './playwright-electron-recorder';
 import { ElectronPlaywrightDebugger } from './playwright-electron-debug';
@@ -166,13 +167,17 @@ export function setupSQLiteHandlers() {
 
   // 레코딩 관련 핸들러 (실제 Playwright Recorder 사용)
   ipcMain.handle('recording:start', async (_, { url }) => {
+    log.info('🎬 [IPC] Recording:start handler called with URL:', url);
     console.log('🎬 [IPC] Recording:start handler called with URL:', url);
     try {
       const sessionId = `recording-${Date.now()}`;
+      log.info(`🎬 [IPC] 레코딩 시작 요청: ${url}, Session ID: ${sessionId}`);
       console.log(`🎬 [IPC] 레코딩 시작 요청: ${url}, Session ID: ${sessionId}`);
 
+      log.info(`🎬 [IPC] ElectronPlaywrightRecorder.startRecording 호출 중...`);
       console.log(`🎬 [IPC] ElectronPlaywrightRecorder.startRecording 호출 중...`);
       const result = await ElectronPlaywrightRecorder.startRecording(url, sessionId);
+      log.info(`🎬 [IPC] ElectronPlaywrightRecorder 결과:`, result);
       console.log(`🎬 [IPC] ElectronPlaywrightRecorder 결과:`, result);
 
       const response = {
@@ -185,9 +190,12 @@ export function setupSQLiteHandlers() {
         }
       };
 
+      log.info(`🎬 [IPC] 응답 준비 완료:`, response);
       console.log(`🎬 [IPC] 응답 준비 완료:`, response);
       return response;
     } catch (error) {
+      log.error('❌ [IPC] 레코딩 시작 실패:', error);
+      log.error('❌ [IPC] 에러 스택:', error instanceof Error ? error.stack : 'No stack trace');
       console.error('❌ [IPC] 레코딩 시작 실패:', error);
       console.error('❌ [IPC] 에러 스택:', error instanceof Error ? error.stack : 'No stack trace');
       return { success: false, error: error instanceof Error ? error.message : '레코딩을 시작할 수 없습니다.' };

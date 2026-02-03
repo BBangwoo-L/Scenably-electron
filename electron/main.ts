@@ -1,7 +1,16 @@
 import { app, BrowserWindow } from 'electron';
 import { join } from 'path';
+import log from 'electron-log';
 import { setupSQLiteHandlers } from './ipc-handlers-sqlite';
 import { closeDatabase } from './database-sqlite';
+
+// electron-log 설정
+log.info('🚀 Scenably Electron Main Process Started');
+log.info(`🔍 Process info - execPath: ${process.execPath}`);
+log.info(`🔍 Process info - cwd: ${process.cwd()}`);
+log.info(`🔍 Process info - platform: ${process.platform}`);
+log.info(`🔍 Process info - resourcesPath: ${process.resourcesPath}`);
+log.info(`🔍 Process info - NODE_ENV: ${process.env.NODE_ENV}`);
 
 // SQLite 데이터베이스는 자동으로 초기화됩니다
 
@@ -41,17 +50,24 @@ function createWindow(): void {
 }
 
 app.whenReady().then(async () => {
-  try {₩
+  try {
+    log.info('🏁 Scenably 앱 시작 중...');
     console.log('Scenably 앱 시작 중...');
 
     // SQLite IPC 핸들러 설정
+    log.info('⚙️ SQLite IPC 핸들러 설정 시작...');
     setupSQLiteHandlers();
+    log.info('✅ SQLite IPC 핸들러 설정 완료');
 
     // 메인 윈도우 생성
+    log.info('🪟 메인 윈도우 생성 시작...');
     createWindow();
+    log.info('✅ 메인 윈도우 생성 완료');
 
+    log.info('🎉 앱 초기화 완료');
     console.log('앱 초기화 완료');
   } catch (error) {
+    log.error('❌ 앱 초기화 실패:', error);
     console.error('앱 초기화 실패:', error);
     // 에러가 있어도 앱은 실행
     createWindow();
