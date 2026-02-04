@@ -242,8 +242,8 @@ export class ElectronPlaywrightDebugger {
       let executable: string;
 
       if (isNodeJsScript) {
-        // Node.js 스크립트로 실행
-        executable = 'node';
+        // electron app은 내장 Nodejs로 실행
+        executable = app.isPackaged ? process.execPath : 'node';
         command = [
           playwrightBin,
           'test',
