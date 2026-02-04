@@ -395,16 +395,17 @@ const getUserDataPath = (): string => {
 ## 🚀 성능 최적화
 
 ### 번들 크기 최적화
-- Playwright 브라우저만 포함 (Firefox, Safari 제외)
-- ASAR 압축으로 파일 수 감소
-- 불필요한 개발 의존성 제외
+- **Chromium만 포함**: Firefox, Safari, Edge 제외로 용량 최소화 (~300MB)
+- **ASAR 압축**: electron-builder 자동 압축으로 파일 수 감소
+- **선택적 패키징**: asarUnpack으로 필요한 바이너리만 포함
+- **앱 아이콘**: `assets/icon.png`/`.ico` 통합
 
 ### 메모리 관리
 - Playwright 프로세스 자동 정리
 - 레코딩 세션 타임아웃 처리 (구현 필요)
 - SQLite 연결 풀링
 
-### 스타트업 최적화
+### 최적화
 - 데이터베이스 지연 초기화
 - 브라우저 지연 로딩
 - UI 우선 렌더링
@@ -440,5 +441,3 @@ await migrationManager.runMigrations(currentVersion, targetVersion)
 ```
 
 ---
-
-이 아키텍처는 확장성, 유지보수성, 크로스 플랫폼 호환성을 고려하여 설계되었으며, Electron의 보안 모범 사례를 따릅니다.

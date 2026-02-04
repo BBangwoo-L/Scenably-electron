@@ -80,12 +80,14 @@ npm install
 ### 3. 브라우저 설치 확인
 만약 브라우저 설치가 실패했다면 수동으로 설치하세요:
 ```bash
-# 모든 브라우저 다운로드
+# Chromium만 설치 (권장 - 용량 최적화)
 npm run install-browsers
 
-# 또는 Playwright 명령어 직접 실행
+# 또는 직접 명령어 실행
 PLAYWRIGHT_BROWSERS_PATH=./browsers npx playwright install chromium
 ```
+
+**참고**: Firefox, Safari 등 다른 브라우저는 설치하지 않습니다. Chromium만 사용하여 앱 크기를 최적화합니다.
 
 ### 4. 환경 변수 설정 (선택사항)
 **주의**: AI 기능은 현재 구현되지 않았습니다. 추후 Claude API 연동 예정입니다.
@@ -102,32 +104,24 @@ npm run electron:dev
 ## 🔧 개발 명령어
 
 ```bash
-# 개발 모드 실행 (Vite + Electron)
+# 🚀 개발 모드 실행 (권장)
 npm run electron:dev
 
-# 렌더러만 개발 서버로 실행 (브라우저에서 확인)
+# 📱 렌더러만 실행 (브라우저에서 UI 확인용)
 npm run dev:renderer
 
-# Electron 메인 프로세스 빌드
-npm run build:electron
+# 🏗️ 배포용 빌드
+npm run dist              # 모든 플랫폼 (macOS에서만 가능)
+npm run dist:win          # Windows 실행파일
+npm run dist:mac          # macOS 앱 (macOS에서만)
+npm run dist:linux        # Linux AppImage
 
-# 렌더러 프로세스 빌드
-npm run build:renderer
-
-# 배포용 빌드
-npm run dist              # 모든 플랫폼
-npm run dist:win          # Windows만
-npm run dist:mac          # macOS만
-npm run dist:linux        # Linux만
-
-# 브라우저 다운로드 (수동)
-npm run install-browsers
-
-# 코드 품질 검사
-npm run lint
-
-# E2E 테스트 실행
-npm run test:e2e
+# 🔧 기타 명령어
+npm run build:electron    # Electron 메인 프로세스만 빌드
+npm run build:renderer    # React 앱만 빌드
+npm run install-browsers  # 브라우저 수동 설치
+npm run lint              # 코드 품질 검사
+npm run test:e2e          # E2E 테스트 실행
 ```
 
 ## 📖 사용 방법
@@ -152,11 +146,11 @@ npm run test:e2e
 
 ## 🏗 배포
 
-### 개발용 빌드 생성
+### 데스크톱 앱 빌드 생성
 ```bash
-# Windows용 실행 파일 생성
+# Windows용 실행 파일 생성 (크로스 플랫폼 지원)
 npm run dist:win
-# → release/Scenably Setup 0.1.0.exe
+# → release/Scenably Setup 0.1.0.exe (약 300MB)
 
 # macOS용 앱 생성 (macOS에서만 가능)
 npm run dist:mac
@@ -165,7 +159,16 @@ npm run dist:mac
 # Linux용 AppImage 생성
 npm run dist:linux
 # → release/Scenably-0.1.0.AppImage
+
+# 모든 플랫폼 빌드 (macOS에서만 가능)
+npm run dist
 ```
+
+### 빌드 특징
+- **앱 아이콘**: `assets/icon.png`와 `assets/icon.ico` 사용
+- **브라우저 포함**: Chromium만 포함하여 용량 최적화 (~300MB)
+- **오프라인 실행**: 인터넷 없이도 완전 동작
+- **크로스 플랫폼**: Windows/macOS/Linux 지원
 
 ### 사용자 설치
 - **Windows**: `.exe` 파일 실행하여 설치
