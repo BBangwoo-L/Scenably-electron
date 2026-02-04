@@ -26,7 +26,6 @@ export class ElectronPlaywrightRecorder {
   private static findPlaywrightBinary(): string {
     const isWin = process.platform === 'win32';
     const executableName = isWin ? 'playwright.cmd' : 'playwright';
-    const nodeExecutable = isWin ? 'node.exe' : 'node';
 
     // 가능한 경로들을 순서대로 확인
     const possiblePaths = [
@@ -373,8 +372,8 @@ export class ElectronPlaywrightRecorder {
       let executable: string;
 
       if (isNodeJsScript) {
-        // 시스템 Node.js 사용 (Electron 실행 방지)
-        executable = 'node';
+        // 앱이면 Electron 내장 node 사용
+        executable = app.isPackaged ? process.execPath : 'node';
         command = [
           playwrightBin,
           'codegen',
@@ -420,7 +419,7 @@ export class ElectronPlaywrightRecorder {
             PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH: this.getAvailableChromiumExecutablePath()
           } : {}),
           // Electron 실행 방지를 위한 환경변수 제거
-          ELECTRON_RUN_AS_NODE: undefined,
+          ELECTRON_RUN_AS_NODE: '1',
           ELECTRON_NO_ATTACH_CONSOLE: undefined
         }
       });

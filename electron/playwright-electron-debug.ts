@@ -3,6 +3,13 @@ import { writeFile, unlink } from 'fs/promises';
 import { existsSync } from 'fs';
 import path from 'path';
 import { app } from 'electron';
+import electronLog from "electron-log";
+
+// 기존 log 함수와 electron-log를 결합
+const log = (message?: any, ...optionalParams: any[]) => {
+  console.log(message, ...optionalParams);
+  electronLog.info(message, ...optionalParams);
+};
 
 interface DebugSession {
   sessionId: string;
@@ -52,19 +59,19 @@ export class ElectronPlaywrightDebugger {
       'playwright'
     ];
 
-    console.log('🔍 [Debug] execPath:', process.execPath);
-    console.log('🔍 [Debug] cwd:', process.cwd());
-    console.log('🔍 [Debug] resourcesPath:', process.resourcesPath);
+    log('🔍 [Debug] execPath:', process.execPath);
+    log('🔍 [Debug] cwd:', process.cwd());
+    log('🔍 [Debug] resourcesPath:', process.resourcesPath);
 
     for (const binPath of possiblePaths) {
-      console.log(`🔍 [Debug] Checking Playwright binary at: ${binPath}`);
+      log(`🔍 [Debug] Checking Playwright binary at: ${binPath}`);
       if (existsSync(binPath)) {
-        console.log(`✅ [Debug] Found Playwright binary: ${binPath}`);
+        log(`✅ [Debug] Found Playwright binary: ${binPath}`);
         return binPath;
       }
     }
 
-    console.log('⚠️ [Debug] No Playwright binary found, using default');
+    log('⚠️ [Debug] No Playwright binary found, using default');
     return executableName; // 기본값으로 system PATH에서 찾기 시도
   }
 
@@ -86,7 +93,7 @@ export class ElectronPlaywrightDebugger {
     const browserPath = this.getBrowserPath();
 
     if (!existsSync(browserPath)) {
-      console.log(`❌ Browser path does not exist: ${browserPath}`);
+      log(`❌ Browser path does not exist: ${browserPath}`);
       return null;
     }
 
@@ -97,7 +104,7 @@ export class ElectronPlaywrightDebugger {
       );
 
       if (chromiumDirs.length === 0) {
-        console.log(`❌ No chromium directories found in: ${browserPath}`);
+        log(`❌ No chromium directories found in: ${browserPath}`);
         return null;
       }
 
@@ -127,17 +134,17 @@ export class ElectronPlaywrightDebugger {
       }
 
       for (const executablePath of possiblePaths) {
-        console.log(`🔍 Checking debug executable at: ${executablePath}`);
+        log(`🔍 Checking debug executable at: ${executablePath}`);
         if (existsSync(executablePath)) {
           const stats = fs.statSync(executablePath);
           if (stats.size > 1000000) { // 1MB 이상이면 실제 실행파일
-            console.log(`✅ Found debug executable: ${executablePath} (${stats.size} bytes)`);
+            log(`✅ Found debug executable: ${executablePath} (${stats.size} bytes)`);
             return executablePath;
           } else {
-            console.log(`⚠️ Debug file too small: ${executablePath} (${stats.size} bytes)`);
+            log(`⚠️ Debug file too small: ${executablePath} (${stats.size} bytes)`);
           }
         } else {
-          console.log(`❌ Debug not found: ${executablePath}`);
+          log(`❌ Debug not found: ${executablePath}`);
         }
       }
 
@@ -150,18 +157,18 @@ export class ElectronPlaywrightDebugger {
         ];
 
         for (const systemPath of systemPaths) {
-          console.log(`🔍 Checking system Chrome for debug at: ${systemPath}`);
+          log(`🔍 Checking system Chrome for debug at: ${systemPath}`);
           if (existsSync(systemPath)) {
-            console.log(`✅ Found system Chrome for debug: ${systemPath}`);
+            log(`✅ Found system Chrome for debug: ${systemPath}`);
             return systemPath;
           }
         }
       }
 
-      console.log(`❌ No valid debug executable found in ${chromiumDir}`);
+      log(`❌ No valid debug executable found in ${chromiumDir}`);
       return null;
     } catch (error) {
-      console.log(`❌ Error finding debug chromium executable: ${error}`);
+      log(`❌ Error finding debug chromium executable: ${error}`);
       return null;
     }
   }
@@ -171,13 +178,13 @@ export class ElectronPlaywrightDebugger {
     try {
       await fs.mkdir(this.tempDir, { recursive: true });
     } catch (error) {
-      console.log('Debug temp directory already exists or creation failed:', error);
+      log('Debug temp directory already exists or creation failed:', error);
     }
   }
 
   static async startDebugSession(code: string, sessionId: string): Promise<{ sessionId: string; message: string }> {
     try {
-      console.log(`🐞 [Debug] Starting debug session: ${sessionId}`);
+      log(`🐞 [Debug] Starting debug session: ${sessionId}`);
 
       await this.ensureTempDirectory();
 
@@ -217,7 +224,7 @@ export class ElectronPlaywrightDebugger {
       }
 
     } catch (error) {
-      console.error('❌ Failed to start debug session:', error);
+      log('❌ Failed to start debug session:', error);
       this.sessions.delete(sessionId);
       throw new Error(`디버그 시작 실패: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
     }
@@ -225,7 +232,7 @@ export class ElectronPlaywrightDebugger {
 
   private static async runPlaywrightTest(session: DebugSession): Promise<boolean> {
     return new Promise((resolve) => {
-      console.log('🚀 Running Playwright test in debug mode...');
+      log('🚀 Running Playwright test in debug mode...');
 
       // 패키징된 앱과 개발 모드 모두 지원하는 경로 탐지
       const playwrightBin = this.findPlaywrightBinary();
@@ -255,9 +262,9 @@ export class ElectronPlaywrightDebugger {
         ];
       }
 
-      console.log('🔧 Debug browser path:', this.getBrowserPath());
-      console.log('🔧 Debug executable:', executable);
-      console.log('🔧 Debug command:', command.join(' '));
+      log('🔧 Debug browser path:', this.getBrowserPath());
+      log('🔧 Debug executable:', executable);
+      log('🔧 Debug command:', command.join(' '));
 
       const childProcess = spawn(executable, command, {
         cwd: process.cwd(),
@@ -273,8 +280,7 @@ export class ElectronPlaywrightDebugger {
           ...(this.getAvailableChromiumExecutablePath() ? {
             PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH: this.getAvailableChromiumExecutablePath()
           } : {}),
-          // Electron 실행 방지를 위한 환경변수 제거
-          ELECTRON_RUN_AS_NODE: undefined,
+          ELECTRON_RUN_AS_NODE: '1',
           ELECTRON_NO_ATTACH_CONSOLE: undefined
         }
       });
@@ -286,34 +292,34 @@ export class ElectronPlaywrightDebugger {
 
       childProcess.stdout?.on('data', (data) => {
         const output = data.toString();
-        console.log(`📤 Debug stdout: ${output}`);
+        log(`📤 Debug stdout: ${output}`);
         outputLog += output;
       });
 
       childProcess.stderr?.on('data', (data) => {
         const errorText = data.toString();
-        console.error(`📤 Debug stderr: ${errorText}`);
+        log(`📤 Debug stderr: ${errorText}`);
         outputLog += errorText;
       });
 
       childProcess.on('spawn', () => {
-        console.log('✅ Debug process spawned successfully');
+        log('✅ Debug process spawned successfully');
       });
 
       childProcess.on('error', (error) => {
-        console.error('❌ Debug spawn error:', error);
+        log('❌ Debug spawn error:', error);
         resolve(false);
       });
 
       childProcess.on('close', async (code) => {
-        console.log(`🏁 Debug process closed with code: ${code}`);
+        log(`🏁 Debug process closed with code: ${code}`);
 
         // Clean up temporary file
         try {
           await unlink(session.tempFile);
-          console.log('🗑️ Cleaned up debug temp file');
+          log('🗑️ Cleaned up debug temp file');
         } catch (error) {
-          console.log('Debug temp file cleanup failed:', error);
+          log('Debug temp file cleanup failed:', error);
         }
 
         // Remove session
@@ -325,7 +331,7 @@ export class ElectronPlaywrightDebugger {
   }
 
   private static processCodeForDebug(code: string): string {
-    console.log('🔍 Processing code for debug:', code.substring(0, 100) + '...');
+    log('🔍 Processing code for debug:', code.substring(0, 100) + '...');
 
     // 유효하지 않은 코드 확인
     if (!code || typeof code !== 'string' || code.trim().length === 0) {
@@ -339,13 +345,13 @@ export class ElectronPlaywrightDebugger {
 
     // 코드가 이미 Test 형태인 경우 그대로 반환
     if (code.includes('import') && code.includes('test(')) {
-      console.log('📝 Detected Playwright Test format');
+      log('📝 Detected Playwright Test format');
       return code;
     }
 
     // Codegen 형태를 Test 형태로 변환
     if (code.includes('const { chromium }') || code.includes('require(\'playwright\')')) {
-      console.log('🔄 Converting Codegen to Test format');
+      log('🔄 Converting Codegen to Test format');
       return this.convertCodegenToTest(code);
     }
 
@@ -408,21 +414,23 @@ test('시나리오 테스트', async ({ page }) => {
 ${actionLines.join('\n')}
 });`;
 
-    console.log('✅ Converted code:', testCode.substring(0, 200) + '...');
+    log('✅ Converted code:', testCode.substring(0, 200) + '...');
     return testCode;
   }
 
   private static async runPlaywrightScript(session: DebugSession): Promise<boolean> {
     return new Promise((resolve) => {
-      console.log('🚀 Running Playwright script in debug mode...');
+      log('🚀 Running Playwright script in debug mode...');
 
       const command = [
         session.tempFile
       ];
 
-      console.log('Debug script command:', 'node', command.join(' '));
+      log('Debug script command:', 'node', command.join(' '));
 
-      const childProcess = spawn('node', command, {
+      const childProcess = spawn(
+          app.isPackaged ? process.execPath : 'node',
+          command, {
         cwd: process.cwd(),
         stdio: ['ignore', 'pipe', 'pipe'],
         detached: false,
@@ -440,34 +448,34 @@ ${actionLines.join('\n')}
 
       childProcess.stdout?.on('data', (data) => {
         const output = data.toString();
-        console.log(`📤 Debug script stdout: ${output}`);
+        log(`📤 Debug script stdout: ${output}`);
         outputLog += output;
       });
 
       childProcess.stderr?.on('data', (data) => {
         const errorText = data.toString();
-        console.error(`📤 Debug script stderr: ${errorText}`);
+        log(`📤 Debug script stderr: ${errorText}`);
         outputLog += errorText;
       });
 
       childProcess.on('spawn', () => {
-        console.log('✅ Debug script process spawned successfully');
+        log('✅ Debug script process spawned successfully');
       });
 
       childProcess.on('error', (error) => {
-        console.error('❌ Debug script spawn error:', error);
+        log('❌ Debug script spawn error:', error);
         resolve(false);
       });
 
       childProcess.on('close', async (code) => {
-        console.log(`🏁 Debug script process closed with code: ${code}`);
+        log(`🏁 Debug script process closed with code: ${code}`);
 
         // Clean up temporary file
         try {
           await unlink(session.tempFile);
-          console.log('🗑️ Cleaned up debug temp file');
+          log('🗑️ Cleaned up debug temp file');
         } catch (error) {
-          console.log('Debug temp file cleanup failed:', error);
+          log('Debug temp file cleanup failed:', error);
         }
 
         // Remove session
@@ -501,7 +509,7 @@ ${actionLines.join('\n')}
           session.process.kill('SIGKILL');
         }
       } catch (error) {
-        console.error('Error killing debug process:', error);
+        log('Error killing debug process:', error);
       }
     }
 
@@ -509,7 +517,7 @@ ${actionLines.join('\n')}
     try {
       await unlink(session.tempFile);
     } catch (error) {
-      console.log('Debug temp file cleanup failed:', error);
+      log('Debug temp file cleanup failed:', error);
     }
 
     this.sessions.delete(sessionId);
