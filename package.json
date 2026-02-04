@@ -74,6 +74,7 @@
     "appId": "com.scenably.app",
     "productName": "Scenably",
     "asar": true,
+    "icon": "assets/icon",
     "asarUnpack": [
       "node_modules/@playwright/**",
       "node_modules/playwright/**",
