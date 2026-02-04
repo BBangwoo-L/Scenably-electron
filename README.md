@@ -222,6 +222,10 @@ npx electron-rebuild
 - 앱에서 "강제 리셋" 버튼 사용
 - 또는 브라우저 프로세스 수동 종료
 
+**5. Footer 요소가 안보임**
+- 디스플레이 배율을 줄여야함.
+
+
 ### 개발자 모드
 개발 중 문제가 있을 때 Electron DevTools를 열어 디버깅할 수 있습니다:
 - **Windows/Linux**: `Ctrl + Shift + I`
