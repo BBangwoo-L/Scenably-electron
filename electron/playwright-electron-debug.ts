@@ -16,6 +16,7 @@ interface DebugSession {
   code: string;
   process?: any;
   tempFile: string;
+  tempConfigFile: string;
   status: 'starting' | 'running' | 'completed' | 'error';
 }
 
@@ -199,11 +200,28 @@ export class ElectronPlaywrightDebugger {
       const tempFile = path.join(this.tempDir, `debug-${sessionId}.spec.ts`);
       await writeFile(tempFile, processedCode, 'utf-8');
 
+      // 디버그 전용 임시 playwright config 생성
+      const tempConfigFile = path.join(this.tempDir, `playwright.config.debug-${sessionId}.ts`);
+      const chromiumPath = this.getAvailableChromiumExecutablePath();
+      const configContent = `import { defineConfig } from '@playwright/test';
+
+export default defineConfig({
+  testDir: '.',
+  use: {
+    browserName: 'chromium',
+    ${chromiumPath ? `launchOptions: { executablePath: ${JSON.stringify(chromiumPath)} },` : ''}
+  },
+});
+`;
+      await writeFile(tempConfigFile, configContent, 'utf-8');
+      log('📝 Created temp debug config:', tempConfigFile);
+
       // Create session object
       const session: DebugSession = {
         sessionId,
         code: processedCode,
         tempFile,
+        tempConfigFile,
         status: 'starting'
       };
 
@@ -248,7 +266,7 @@ export class ElectronPlaywrightDebugger {
           playwrightBin,
           'test',
           '--debug',
-          '--project=chromium',
+          `--config=${session.tempConfigFile}`,
           session.tempFile
         ];
       } else {
@@ -257,7 +275,7 @@ export class ElectronPlaywrightDebugger {
         command = [
           'test',
           '--debug',
-          '--project=chromium',
+          `--config=${session.tempConfigFile}`,
           session.tempFile
         ];
       }
@@ -314,12 +332,18 @@ export class ElectronPlaywrightDebugger {
       childProcess.on('close', async (code) => {
         log(`🏁 Debug process closed with code: ${code}`);
 
-        // Clean up temporary file
+        // Clean up temporary files
         try {
           await unlink(session.tempFile);
           log('🗑️ Cleaned up debug temp file');
         } catch (error) {
           log('Debug temp file cleanup failed:', error);
+        }
+        try {
+          await unlink(session.tempConfigFile);
+          log('🗑️ Cleaned up debug temp config file');
+        } catch (error) {
+          log('Debug temp config file cleanup failed:', error);
         }
 
         // Remove session
@@ -513,11 +537,16 @@ ${actionLines.join('\n')}
       }
     }
 
-    // Clean up temp file
+    // Clean up temp files
     try {
       await unlink(session.tempFile);
     } catch (error) {
       log('Debug temp file cleanup failed:', error);
+    }
+    try {
+      await unlink(session.tempConfigFile);
+    } catch (error) {
+      log('Debug temp config file cleanup failed:', error);
     }
 
     this.sessions.delete(sessionId);
