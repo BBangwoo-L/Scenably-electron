@@ -147,15 +147,66 @@ class PlaywrightElectronRecorder {
 ### 디버그 엔진 (`playwright-electron-debug.ts`)
 
 ```typescript
-class PlaywrightElectronDebug {
-  // UI 모드로 테스트 실행
-  public static async debugScenario(code: string, url: string)
+class ElectronPlaywrightDebugger {
+  // --debug 플래그와 함께 Playwright Test 실행 (Inspector UI 표시)
+  static async startDebugSession(code: string, sessionId: string)
 
-  // 임시 파일 생성 및 관리
-  private static createTempTestFile(code: string): string
+  // 코드 형태 감지 및 변환 (Codegen → Test 형태)
+  private static processCodeForDebug(code: string): string
 
-  // 디버그 세션 환경 설정
-  private static setupDebugEnvironment()
+  // 임시 .spec.ts 파일 + playwright.config 생성 → spawn 실행
+  private static runPlaywrightTest(session: DebugSession): Promise<boolean>
+}
+```
+
+### 백그라운드 실행 엔진 (`playwright-electron-executor.ts`)
+
+시나리오를 headless 모드로 백그라운드 실행하고 결과를 비동기로 수집하는 엔진입니다.
+
+```
+사용자 "실행" 클릭
+    ↓
+IPC: scenarios:execute
+    ↓
+DB에 RUNNING 상태로 execution 레코드 생성
+    ↓
+즉시 응답 반환 (executionId + RUNNING 상태)
+    ↓ (fire-and-forget)
+ElectronPlaywrightExecutor.executeInBackground()
+    ├── 임시 디렉토리 생성 (tests/execute/)
+    ├── 임시 .spec.ts 파일 생성
+    ├── 임시 playwright.config 생성 (headless: true, chromium 경로 포함)
+    ├── Playwright binary 탐색 (개발/패키징 모드 자동 분기)
+    ├── spawn으로 별도 프로세스 실행 (ELECTRON_RUN_AS_NODE=1)
+    ├── stdout/stderr 실시간 캡처
+    └── 프로세스 종료 시:
+        ├── DB 업데이트 (SUCCESS/FAILURE + 결과 JSON)
+        ├── IPC로 렌더러에 알림 (execution:statusChanged)
+        └── 임시 파일 정리
+```
+
+```typescript
+class ElectronPlaywrightExecutor {
+  // headless 모드로 테스트를 백그라운드 실행
+  static async executeInBackground(executionId: string, scenarioId: string, code: string)
+
+  // 실행 결과를 DB에 저장하고 렌더러에 알림
+  private static updateExecutionResult(executionId: string, status: 'SUCCESS' | 'FAILURE', result: any)
+}
+```
+
+**프론트엔드 결과 수신 방식:**
+1. **IPC 이벤트 구독**: `execution:statusChanged` 이벤트를 수신하여 즉시 반영
+2. **폴링 폴백**: RUNNING 상태 실행이 있으면 3초 간격으로 시나리오 목록 재조회
+3. **결과 상세 보기**: StatusBadge 클릭 시 ExecutionDetailDialog에서 stdout/stderr/에러 확인
+
+**환경변수 설정:**
+```typescript
+{
+  NODE_ENV: 'development',
+  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1',     // 브라우저 자동 다운로드 방지
+  PLAYWRIGHT_BROWSERS_PATH: getBrowserPath(), // 번들된 브라우저 경로
+  ELECTRON_RUN_AS_NODE: '1',                 // Electron을 Node.js로 실행
 }
 ```
 

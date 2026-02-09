@@ -176,7 +176,7 @@ export function ScenarioFilterBar({
         </div>
       )}
 
-      <div className="flex items-center justify-between text-sm text-muted-foreground">
+      <div className="flex items-center justify-between text-sm text-muted-foreground border-t pt-3">
         <span>
           {filteredCount === totalCount
             ? `총 ${totalCount}개 시나리오`

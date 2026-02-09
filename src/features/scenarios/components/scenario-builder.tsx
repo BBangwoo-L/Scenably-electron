@@ -1,9 +1,10 @@
 "use client";
 
+import { useRef, useState } from "react";
 import { useScenarioBuilder } from "../hooks";
 import { useRecording } from "@/features/recording/hooks";
 import { ScenarioInfoForm } from "./scenario-info-form";
-import { RecordingControls } from "@/features/recording/components";
+import { RecordingControls, TEMPLATE_CODE } from "@/features/recording/components";
 import { CodeEditor } from "./code-editor";
 import { useConfirmModalStore } from "@/stores/confirm-modal-store";
 
@@ -17,7 +18,6 @@ export function ScenarioBuilder({ scenarioId }: ScenarioBuilderProps) {
     isLoading: builderLoading,
     updateScenarioData,
     saveScenario,
-    modifyWithAI,
     executeTest,
     navigateHome
   } = useScenarioBuilder(undefined, scenarioId);
@@ -33,11 +33,45 @@ export function ScenarioBuilder({ scenarioId }: ScenarioBuilderProps) {
     forceReset
   } = useRecording();
 
-  const { openConfirmModal, openPromptModal } = useConfirmModalStore();
+  const { openConfirmModal } = useConfirmModalStore();
 
   const isLoading = builderLoading || recordingLoading;
+  const [fieldErrors, setFieldErrors] = useState<{ name?: string; targetUrl?: string }>({});
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const urlInputRef = useRef<HTMLInputElement>(null);
+
+  const clearFieldError = (field: "name" | "targetUrl") => {
+    setFieldErrors((prev) => ({ ...prev, [field]: undefined }));
+  };
+
+  const ensureRequiredFields = (options: { name?: boolean; targetUrl?: boolean }) => {
+    const nextErrors: { name?: string; targetUrl?: string } = {};
+
+    if (options.name && !scenarioData.name.trim()) {
+      nextErrors.name = "시나리오 이름을 입력해주세요.";
+    }
+    if (options.targetUrl && !scenarioData.targetUrl.trim()) {
+      nextErrors.targetUrl = "대상 URL을 입력해주세요.";
+    }
+
+    const hasErrors = Object.keys(nextErrors).length > 0;
+    if (hasErrors) {
+      setFieldErrors(nextErrors);
+      if (nextErrors.name) {
+        nameInputRef.current?.focus();
+      } else if (nextErrors.targetUrl) {
+        urlInputRef.current?.focus();
+      }
+      return false;
+    }
+
+    return true;
+  };
 
   const handleSave = async () => {
+    if (!ensureRequiredFields({ name: true, targetUrl: true })) {
+      return;
+    }
     try {
       await saveScenario();
       navigateHome();
@@ -46,22 +80,15 @@ export function ScenarioBuilder({ scenarioId }: ScenarioBuilderProps) {
     }
   };
 
-  const handleAiModify = async () => {
-    const modificationRequest = await openPromptModal({
-      message: "테스트 시나리오를 어떻게 수정하고 싶은지 설명해주세요:\n(예: '로그인 테스트 추가', '특정 텍스트 확인', '폼 유효성 검사 추가')"
-    });
-
-    if (!modificationRequest) return;
-
-    try {
-      const result = await modifyWithAI(modificationRequest);
-      await openConfirmModal({ message: `코드가 성공적으로 수정되었습니다!\n\n설명: ${result.explanation}` });
-    } catch (error) {
-      await openConfirmModal({ message: error instanceof Error ? error.message : "AI 수정에 실패했습니다" });
-    }
+  const handleApplyTemplate = () => {
+    updateScenarioData({ code: TEMPLATE_CODE });
   };
 
   const handleStartRecording = async () => {
+    if (!ensureRequiredFields({ targetUrl: true })) {
+      return;
+    }
+
     try {
       const result = await startRecording(scenarioData.targetUrl);
 
@@ -94,14 +121,11 @@ export function ScenarioBuilder({ scenarioId }: ScenarioBuilderProps) {
   };
 
   const handleCancelRecording = async () => {
-    const confirmed = await openConfirmModal({ message: "레코딩을 취소하시겠습니까? 지금까지의 레코딩 내용은 저장되지 않습니다.", isAlert: false });
-    if (confirmed) {
-      try {
-        await cancelRecording();
-        await openConfirmModal({ message: "레코딩이 취소되었습니다." });
-      } catch (error) {
-        await openConfirmModal({ message: error instanceof Error ? error.message : "레코딩 취소에 실패했습니다" });
-      }
+    try {
+      await cancelRecording();
+      await openConfirmModal({ message: "레코딩이 취소되었습니다." });
+    } catch (error) {
+      await openConfirmModal({ message: error instanceof Error ? error.message : "레코딩 취소에 실패했습니다" });
     }
   };
 
@@ -114,11 +138,14 @@ export function ScenarioBuilder({ scenarioId }: ScenarioBuilderProps) {
   };
 
   const handleTestRun = async () => {
+    if (!ensureRequiredFields({ name: true, targetUrl: true })) {
+      return;
+    }
     try {
       const result = await executeTest();
-      await openConfirmModal({ message: `Test execution started!\nExecution ID: ${result.executionId}\nStatus: ${result.status}` });
+      await openConfirmModal({ message: `테스트 실행이 시작되었습니다!\n실행 ID: ${result.executionId}\n상태: ${result.status}` });
     } catch (error) {
-      await openConfirmModal({ message: error instanceof Error ? error.message : "Failed to run test" });
+      await openConfirmModal({ message: error instanceof Error ? error.message : "테스트 실행에 실패했습니다" });
     }
   };
 
@@ -129,6 +156,9 @@ export function ScenarioBuilder({ scenarioId }: ScenarioBuilderProps) {
         <ScenarioInfoForm
           scenarioData={scenarioData}
           onUpdate={updateScenarioData}
+          errors={fieldErrors}
+          inputRefs={{ name: nameInputRef, targetUrl: urlInputRef }}
+          onClearError={clearFieldError}
         />
 
         <RecordingControls
@@ -141,9 +171,9 @@ export function ScenarioBuilder({ scenarioId }: ScenarioBuilderProps) {
           onCancelRecording={handleCancelRecording}
           onForceReset={handleForceReset}
           onSave={handleSave}
-          onAiModify={handleAiModify}
           onTestRun={handleTestRun}
           onNavigateHome={navigateHome}
+          onApplyTemplate={handleApplyTemplate}
         />
       </div>
 

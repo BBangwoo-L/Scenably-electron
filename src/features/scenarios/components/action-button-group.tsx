@@ -26,13 +26,13 @@ export function ActionButtonGroup({
     <div className="flex flex-wrap items-center gap-2 mt-3">
       <LoadingButton
         size="sm"
-        variant="default"
+        variant="outline"
         onClick={() => onRun(scenario.id)}
         disabled={isRunning}
         isLoading={isRunning}
         loadingText="실행 중..."
         icon={<Play className="h-3 w-3" />}
-        className="flex-shrink-0"
+        className="text-blue-600 border-blue-200 hover:bg-blue-50 flex-shrink-0"
       >
         <span className="hidden sm:inline">실행</span>
       </LoadingButton>
@@ -52,7 +52,7 @@ export function ActionButtonGroup({
         size="sm"
         variant="outline"
         onClick={() => onDebug(scenario.id)}
-        className="text-blue-600 border-blue-200 hover:bg-blue-50 flex-shrink-0"
+        className="text-green-600 border-green-200 hover:bg-green-50 flex-shrink-0"
         disabled={isRunning || isLoading}
         icon={<Bug className="h-3 w-3" />}
       >
@@ -65,7 +65,7 @@ export function ActionButtonGroup({
         onClick={() => onDelete(scenario.id)}
         disabled={isRunning || isLoading}
         icon={<Trash2 className="h-3 w-3" />}
-        className="flex-shrink-0"
+        className="text-red-600 border-red-200 hover:bg-red-50 flex-shrink-0"
       >
         <span className="hidden sm:inline">삭제</span>
       </LoadingButton>
