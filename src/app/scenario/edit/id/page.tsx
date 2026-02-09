@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { Button, Card, CardContent, CardHeader, CardTitle, Input, Label, Textarea } from "@/shared/ui";
 import { EnhancedCodePreview, FullscreenCodeEditor } from "@/features/scenarios/components";
 import { ArrowLeft, Save, Play, Wand2, Settings } from "lucide-react";
+import { useConfirmModalStore } from "@/stores/confirm-modal-store";
 
 interface Scenario {
   id: string;
@@ -21,6 +22,7 @@ export default function EditScenarioPage() {
   const params = useParams();
   const router = useRouter();
   const scenarioId = params.id as string;
+  const { openConfirmModal, openPromptModal } = useConfirmModalStore();
 
   const [scenario, setScenario] = useState<Scenario | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -43,11 +45,11 @@ export default function EditScenarioPage() {
         setScenario(data);
       } else {
         const error = await response.json();
-        alert(`시나리오를 불러오는데 실패했습니다: ${error.error}`);
+        await openConfirmModal({ message: `시나리오를 불러오는데 실패했습니다: ${error.error}` });
         router.push("/");
       }
     } catch (error) {
-      alert("시나리오를 불러오는데 실패했습니다");
+      await openConfirmModal({ message: "시나리오를 불러오는데 실패했습니다" });
       console.error(error);
       router.push("/");
     } finally {
@@ -57,7 +59,7 @@ export default function EditScenarioPage() {
 
   const handleSave = async () => {
     if (!scenario || !scenario.name.trim()) {
-      alert("시나리오 이름을 입력해주세요");
+      await openConfirmModal({ message: "시나리오 이름을 입력해주세요" });
       return;
     }
 
@@ -78,14 +80,14 @@ export default function EditScenarioPage() {
       });
 
       if (response.ok) {
-        alert("시나리오가 성공적으로 업데이트되었습니다!");
+        await openConfirmModal({ message: "시나리오가 성공적으로 업데이트되었습니다!" });
         router.push("/");
       } else {
         const error = await response.json();
-        alert(`시나리오 업데이트 실패: ${error.error}`);
+        await openConfirmModal({ message: `시나리오 업데이트 실패: ${error.error}` });
       }
     } catch (error) {
-      alert("시나리오 업데이트에 실패했습니다");
+      await openConfirmModal({ message: "시나리오 업데이트에 실패했습니다" });
       console.error(error);
     } finally {
       setIsLoading(false);
@@ -95,9 +97,9 @@ export default function EditScenarioPage() {
   const handleAiModify = async () => {
     if (!scenario) return;
 
-    const modificationRequest = prompt(
-      "테스트 시나리오를 어떻게 수정하고 싶은지 설명해주세요:\n(예: '로그인 테스트 추가', '특정 텍스트 확인', '폼 유효성 검사 추가')"
-    );
+    const modificationRequest = await openPromptModal({
+      message: "테스트 시나리오를 어떻게 수정하고 싶은지 설명해주세요:\n(예: '로그인 테스트 추가', '특정 텍스트 확인', '폼 유효성 검사 추가')"
+    });
 
     if (!modificationRequest) return;
 
@@ -119,13 +121,13 @@ export default function EditScenarioPage() {
       if (response.ok) {
         const result = await response.json();
         setScenario({ ...scenario, code: result.modifiedCode });
-        alert(`코드가 성공적으로 수정되었습니다!\n\n설명: ${result.explanation}`);
+        await openConfirmModal({ message: `코드가 성공적으로 수정되었습니다!\n\n설명: ${result.explanation}` });
       } else {
         const error = await response.json();
-        alert(`AI 수정 실패: ${error.error}`);
+        await openConfirmModal({ message: `AI 수정 실패: ${error.error}` });
       }
     } catch (error) {
-      alert("AI 수정에 실패했습니다");
+      await openConfirmModal({ message: "AI 수정에 실패했습니다" });
       console.error(error);
     } finally {
       setIsLoading(false);
@@ -144,13 +146,13 @@ export default function EditScenarioPage() {
 
       if (executeResponse.ok) {
         const result = await executeResponse.json();
-        alert(`Test execution started!\nExecution ID: ${result.executionId}\nStatus: ${result.status}`);
+        await openConfirmModal({ message: `Test execution started!\nExecution ID: ${result.executionId}\nStatus: ${result.status}` });
       } else {
         const error = await executeResponse.json();
-        alert(`Test execution failed: ${error.error}`);
+        await openConfirmModal({ message: `Test execution failed: ${error.error}` });
       }
     } catch (error) {
-      alert("Failed to run test");
+      await openConfirmModal({ message: "Failed to run test" });
       console.error(error);
     } finally {
       setIsLoading(false);
@@ -315,4 +317,3 @@ export default function EditScenarioPage() {
     </div>
   );
 }
-

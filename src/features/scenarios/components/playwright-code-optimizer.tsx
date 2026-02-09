@@ -12,6 +12,7 @@ import { Label } from '@/shared/ui/label';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/shared/ui/accordion';
 import { Save, Upload, HelpCircle } from 'lucide-react';
 import { useToastStore } from '@/stores/toast-store';
+import { useConfirmModalStore } from '@/stores/confirm-modal-store';
 
 interface PlaywrightAction {
   id: string;
@@ -59,6 +60,7 @@ export function PlaywrightCodeOptimizer({
   const [actions, setActions] = useState<PlaywrightAction[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const { showToast } = useToastStore();
+  const { openConfirmModal } = useConfirmModalStore();
 
   // 도움말 메시지들
   const helpMessages = {
@@ -217,7 +219,7 @@ export function PlaywrightCodeOptimizer({
     console.log('actions:', actions);
 
     if (!originalCode) {
-      alert('원본 코드가 없습니다. 먼저 코드를 입력해주세요.');
+      openConfirmModal({ message: '원본 코드가 없습니다. 먼저 코드를 입력해주세요.' });
       return;
     }
 
@@ -484,12 +486,12 @@ async function clickMultipleIfExists(page, selector, maxAttempts = 5, options = 
   // 저장하고 돌아가기
   const handleSaveAndReturn = async () => {
     if (!optimizedCode) {
-      alert('먼저 최적화된 코드를 생성해주세요');
+      openConfirmModal({ message: '먼저 최적화된 코드를 생성해주세요' });
       return;
     }
 
     if (!onSaveAndReturn) {
-      alert('저장 기능이 설정되지 않았습니다');
+      openConfirmModal({ message: '저장 기능이 설정되지 않았습니다' });
       return;
     }
 
@@ -498,7 +500,7 @@ async function clickMultipleIfExists(page, selector, maxAttempts = 5, options = 
       await onSaveAndReturn(optimizedCode);
     } catch (error) {
       console.error('Save error:', error);
-      alert(`저장 중 오류가 발생했습니다: ${error.message}`);
+      openConfirmModal({ message: `저장 중 오류가 발생했습니다: ${(error as Error).message}` });
     } finally {
       setIsSaving(false);
     }

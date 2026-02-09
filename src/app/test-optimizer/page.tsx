@@ -3,11 +3,13 @@ import { useEffect, useState } from 'react';
 import { PlaywrightCodeOptimizer } from '@/features/scenarios/components/playwright-code-optimizer';
 import { Button } from '@/shared/ui/button';
 import { ArrowLeft, Loader2 } from 'lucide-react';
+import { useConfirmModalStore } from '@/stores/confirm-modal-store';
 
 export default function TestOptimizerPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
+  const { openConfirmModal } = useConfirmModalStore();
 
   // 로딩 및 데이터 상태
   const [isLoading, setIsLoading] = useState(true);
@@ -36,7 +38,7 @@ export default function TestOptimizerPage() {
       const returnUrl = searchParams.get('returnUrl') || '/';
 
       if (!scenarioId) {
-        alert('시나리오 ID가 필요합니다');
+        await openConfirmModal({ message: '시나리오 ID가 필요합니다' });
         navigate(returnUrl);
         return;
       }
@@ -54,7 +56,7 @@ export default function TestOptimizerPage() {
         });
       } catch (error) {
         console.error('시나리오 로드 실패:', error);
-        alert('시나리오 로드에 실패했습니다');
+        await openConfirmModal({ message: '시나리오 로드에 실패했습니다' });
         navigate(returnUrl);
         return;
       }
@@ -67,7 +69,7 @@ export default function TestOptimizerPage() {
 
   const handleSaveAndReturn = async (optimizedCode: string) => {
     if (!scenarioData.scenarioId) {
-      alert('시나리오 ID가 없습니다');
+      await openConfirmModal({ message: '시나리오 ID가 없습니다' });
       return;
     }
 
@@ -79,10 +81,10 @@ export default function TestOptimizerPage() {
         code: optimizedCode,
       });
 
-      alert('최적화된 코드가 저장되었습니다!');
+      await openConfirmModal({ message: '최적화된 코드가 저장되었습니다!' });
       navigate(scenarioData.returnUrl);
     } catch (error) {
-      alert('저장에 실패했습니다');
+      await openConfirmModal({ message: '저장에 실패했습니다' });
       console.error(error);
     }
   };
@@ -141,4 +143,3 @@ export default function TestOptimizerPage() {
     </div>
   );
 }
-

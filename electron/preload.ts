@@ -12,6 +12,15 @@ const electronAPI = {
     debug: (code: string) => ipcRenderer.invoke('scenarios:debug', { code }),
   },
 
+  // 실행 관련 API
+  executions: {
+    getById: (id: string) => ipcRenderer.invoke('executions:getById', id),
+    onStatusChanged: (callback: (data: any) => void) => {
+      ipcRenderer.on('execution:statusChanged', (_, data) => callback(data));
+      return () => { ipcRenderer.removeAllListeners('execution:statusChanged'); };
+    },
+  },
+
   // 레코딩 관련 API
   recording: {
     start: (url: string) => ipcRenderer.invoke('recording:start', { url }),

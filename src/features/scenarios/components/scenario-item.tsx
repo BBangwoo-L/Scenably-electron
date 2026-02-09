@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { StatusBadge } from "@/shared/components";
 import { ActionButtonGroup } from "@/features/scenarios";
+import { ExecutionDetailDialog } from "./execution-detail-dialog";
 import type { ScenarioItemProps } from "../lib";
 
 
@@ -12,6 +14,10 @@ export function ScenarioItem({
   onDelete
 }: ScenarioItemProps) {
   const isRunning = scenario.executions.length > 0 && scenario.executions[0].status === "RUNNING";
+  const [detailOpen, setDetailOpen] = useState(false);
+
+  const latestExecution = scenario.executions.length > 0 ? scenario.executions[0] : null;
+  const canShowDetail = latestExecution && (latestExecution.status === 'SUCCESS' || latestExecution.status === 'FAILED');
 
   return (
     <div className="p-3 sm:p-4 border rounded-lg hover:shadow-sm transition-shadow">
@@ -20,8 +26,13 @@ export function ScenarioItem({
           <div className="flex items-start justify-between mb-2 sm:mb-0">
             <h3 className="font-medium text-sm sm:text-base pr-2">{scenario.name}</h3>
             <div className="flex items-center gap-2 flex-shrink-0 sm:hidden">
-              {scenario.executions.length > 0 && (
-                <StatusBadge status={scenario.executions[0].status} />
+              {latestExecution && (
+                <div
+                  className={canShowDetail ? "cursor-pointer" : ""}
+                  onClick={canShowDetail ? () => setDetailOpen(true) : undefined}
+                >
+                  <StatusBadge status={latestExecution.status} />
+                </div>
               )}
             </div>
           </div>
@@ -35,8 +46,13 @@ export function ScenarioItem({
           </p>
         </div>
         <div className="hidden sm:flex items-center gap-2 ml-4">
-          {scenario.executions.length > 0 && (
-            <StatusBadge status={scenario.executions[0].status} />
+          {latestExecution && (
+            <div
+              className={canShowDetail ? "cursor-pointer" : ""}
+              onClick={canShowDetail ? () => setDetailOpen(true) : undefined}
+            >
+              <StatusBadge status={latestExecution.status} />
+            </div>
           )}
         </div>
       </div>
@@ -54,6 +70,14 @@ export function ScenarioItem({
       <div className="text-xs text-muted-foreground mt-2 flex justify-between items-center">
         <span>업데이트: {new Date(scenario.updatedAt).toLocaleDateString()}</span>
       </div>
+
+      {latestExecution && (
+        <ExecutionDetailDialog
+          isOpen={detailOpen}
+          onClose={() => setDetailOpen(false)}
+          execution={latestExecution}
+        />
+      )}
     </div>
   );
 }

@@ -138,6 +138,21 @@ export class ElectronPlaywrightRecorder {
 
     try {
       const fs = require('fs');
+      // Windows 패키징 환경에서는 시스템 Chrome을 우선 사용 (번들 브라우저 이슈 회피)
+      if (process.platform === 'win32' && app.isPackaged) {
+        const systemPaths = [
+          'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+          'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+          path.join(require('os').homedir(), 'AppData\\Local\\Google\\Chrome\\Application\\chrome.exe')
+        ];
+        for (const systemPath of systemPaths) {
+          if (existsSync(systemPath)) {
+            log(`✅ Found system Chrome: ${systemPath}`);
+            return systemPath;
+          }
+        }
+      }
+
       const chromiumDirs = fs.readdirSync(browserPath).filter((dir: string) =>
         dir.startsWith('chromium-') && fs.statSync(path.join(browserPath, dir)).isDirectory()
       );
@@ -156,19 +171,16 @@ export class ElectronPlaywrightRecorder {
       if (process.platform === 'win32') {
         possiblePaths.push(
           path.join(chromiumDir, 'chrome-win', 'chrome.exe'),
-          path.join(chromiumDir, 'chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium'), // 크로스 플랫폼
           // Windows에서 headless shell 사용 (더 안정적)
           path.join(browserPath, 'chromium_headless_shell-1193', 'chrome-mac', 'headless_shell'),
         );
       } else if (process.platform === 'darwin') {
         possiblePaths.push(
           path.join(chromiumDir, 'chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium'),
-          path.join(chromiumDir, 'chrome-win', 'chrome.exe'), // Windows 빌드용
         );
       } else {
         possiblePaths.push(
           path.join(chromiumDir, 'chrome-linux', 'chrome'),
-          path.join(chromiumDir, 'chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium'),
         );
       }
 
@@ -238,20 +250,11 @@ export class ElectronPlaywrightRecorder {
             // 실제 실행파일이 있는지 확인 (크로스 플랫폼 지원)
             const possiblePaths = [];
             if (process.platform === 'win32') {
-              possiblePaths.push(
-                path.join(browserDir, 'chrome-win', 'chrome.exe'),
-                path.join(browserDir, 'chrome-mac', 'Chromium.app'), // 개발 시 macOS 브라우저 사용
-              );
+              possiblePaths.push(path.join(browserDir, 'chrome-win', 'chrome.exe'));
             } else if (process.platform === 'darwin') {
-              possiblePaths.push(
-                path.join(browserDir, 'chrome-mac', 'Chromium.app'),
-                path.join(browserDir, 'chrome-win', 'chrome.exe'), // Windows 빌드용
-              );
+              possiblePaths.push(path.join(browserDir, 'chrome-mac', 'Chromium.app'));
             } else {
-              possiblePaths.push(
-                path.join(browserDir, 'chrome-linux', 'chrome'),
-                path.join(browserDir, 'chrome-mac', 'Chromium.app'),
-              );
+              possiblePaths.push(path.join(browserDir, 'chrome-linux', 'chrome'));
             }
 
             let foundExecutable = false;
@@ -333,7 +336,7 @@ export class ElectronPlaywrightRecorder {
   private static async startPlaywrightProcessAsync(session: RecordingSession): Promise<void> {
     // 백그라운드에서 Playwright process 시작
     try {
-      // Method 1: 브라우저 설치 상태 확인 및 자동 설치
+      // 1단계: 브라우저 설치 상태 확인
       log('🔍 브라우저 설치 상태 확인 중...');
       const browserInstalled = await this.ensureBrowsersInstalled();
 
@@ -343,17 +346,99 @@ export class ElectronPlaywrightRecorder {
         return;
       }
 
-      // Method 2: Try to use playwright codegen with proper error handling
+      // 2단계: Playwright codegen 실행
       const success = await this.tryPlaywrightCodegen(session);
       if (!success) {
-        // Method 3: Fallback to template generation
-        log('🔄 Codegen failed, falling back to template');
+        // 사용자가 stopRecording()으로 프로세스를 종료한 경우,
+        // codegen이 SIGTERM을 받고 outputFile에 코드를 이미 저장했을 수 있음.
+        // 파일이 이미 존재하면 템플릿으로 덮어쓰지 않음.
+        if (session.status === 'stopping' || session.status === 'completed') {
+          log('🔄 세션이 이미 중지됨 - 템플릿 생성 건너뜀');
+          return;
+        }
+        if (existsSync(session.outputFile)) {
+          log('🔄 Codegen이 실패했지만 outputFile이 이미 존재 - 템플릿 생성 건너뜀');
+          return;
+        }
+        log('🔄 Codegen 실패, 템플릿으로 대체');
         await this.generateTemplateCode(session);
       }
     } catch (error) {
-      log('Codegen error, using template:', error);
-      await this.generateTemplateCode(session);
+      log('Codegen 오류:', error);
+      // 오류 발생 시에도 이미 파일이 있으면 덮어쓰지 않음
+      if (!existsSync(session.outputFile) && session.status !== 'stopping') {
+        await this.generateTemplateCode(session);
+      }
     }
+  }
+
+  private static logChromiumDiagnostics(executablePath: string): void {
+    try {
+      const fs = require('fs');
+      const dir = path.dirname(executablePath);
+      const requiredFiles = [
+        'icudtl.dat',
+        'chrome_elf.dll',
+        'v8_context_snapshot.bin',
+        'resources.pak'
+      ];
+
+      log(`🔍 [Recorder] Chromium 실행 파일 경로: ${executablePath}`);
+      log(`🔍 [Recorder] Chromium 디렉토리: ${dir}`);
+
+      for (const file of requiredFiles) {
+        const fullPath = path.join(dir, file);
+        const exists = fs.existsSync(fullPath);
+        log(`🔍 [Recorder] 필수 파일 ${file}: ${exists ? '존재' : '없음'} (${fullPath})`);
+      }
+    } catch (error) {
+      log(`⚠️ [Recorder] Chromium 진단 중 오류: ${error}`);
+    }
+  }
+
+  private static async probeChromiumExecutable(executablePath: string): Promise<void> {
+    if (process.env.SCENABLY_CHROMIUM_PROBE !== '1') {
+      return;
+    }
+    return new Promise((resolve) => {
+      try {
+        const child = spawn(executablePath, ['--version'], {
+          stdio: ['ignore', 'pipe', 'pipe'],
+          detached: false
+        });
+
+        let stdout = '';
+        let stderr = '';
+
+        const timeout = setTimeout(() => {
+          try { child.kill(); } catch {}
+          log('⚠️ [Recorder] Chromium --version 타임아웃');
+          resolve();
+        }, 5000);
+
+        child.stdout?.on('data', (data) => {
+          stdout += data.toString();
+        });
+        child.stderr?.on('data', (data) => {
+          stderr += data.toString();
+        });
+        child.on('error', (error) => {
+          clearTimeout(timeout);
+          log(`❌ [Recorder] Chromium --version 실행 실패: ${error}`);
+          resolve();
+        });
+        child.on('close', (code) => {
+          clearTimeout(timeout);
+          log(`🔍 [Recorder] Chromium --version 종료 코드: ${code}`);
+          if (stdout.trim()) log(`🔍 [Recorder] Chromium --version stdout: ${stdout.trim()}`);
+          if (stderr.trim()) log(`🔍 [Recorder] Chromium --version stderr: ${stderr.trim()}`);
+          resolve();
+        });
+      } catch (error) {
+        log(`⚠️ [Recorder] Chromium --version 진단 중 오류: ${error}`);
+        resolve();
+      }
+    });
   }
 
   private static async tryPlaywrightCodegen(session: RecordingSession): Promise<boolean> {
@@ -396,6 +481,12 @@ export class ElectronPlaywrightRecorder {
           ...(process.platform === 'win32' ? ['--channel', 'chrome'] : []),
           session.url
         ];
+      }
+
+      const chromiumPath = this.getAvailableChromiumExecutablePath();
+      if (chromiumPath) {
+        this.logChromiumDiagnostics(chromiumPath);
+        this.probeChromiumExecutable(chromiumPath);
       }
 
       log('execPath:', process.execPath);

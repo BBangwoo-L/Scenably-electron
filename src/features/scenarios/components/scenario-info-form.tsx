@@ -34,7 +34,7 @@ export function ScenarioInfoForm({ scenarioData, onUpdate }: ScenarioInfoFormPro
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="targetUrl">대상 URL</Label>
+          <Label htmlFor="targetUrl">대상 URL *</Label>
           <Input
             id="targetUrl"
             value={scenarioData.targetUrl}

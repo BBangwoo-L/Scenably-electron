@@ -13,3 +13,4 @@ export * from './url-input';
 export * from './quick-start-guide';
 export * from './playwright-code-optimizer';
 export * from './file-upload-element-config';
+export * from './execution-detail-dialog';

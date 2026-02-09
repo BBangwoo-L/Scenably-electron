@@ -3,20 +3,27 @@ import log from 'electron-log';
 import { getDatabase } from './database-sqlite';
 import { ElectronPlaywrightRecorder } from './playwright-electron-recorder';
 import { ElectronPlaywrightDebugger } from './playwright-electron-debug';
+import { ElectronPlaywrightExecutor } from './playwright-electron-executor';
 
 // 간단하고 깔끔한 IPC 핸들러 (SQLite 기반)
 export function setupSQLiteHandlers() {
   console.log('🔧 [Setup] SQLite IPC 핸들러 설정 시작...');
 
   try {
-    console.log('🔧 [Setup] 데이터베이스 인스턴스 가져오는 중...');
-    const db = getDatabase();
-    console.log('🔧 [Setup] 데이터베이스 인스턴스 획득 성공');
+    let db: ReturnType<typeof getDatabase> | null = null;
+    const ensureDb = () => {
+      if (!db) {
+        console.log('🔧 [Setup] 데이터베이스 인스턴스 가져오는 중...');
+        db = getDatabase();
+        console.log('🔧 [Setup] 데이터베이스 인스턴스 획득 성공');
+      }
+      return db;
+    };
 
   // 시나리오 관련 핸들러
   ipcMain.handle('scenarios:getAll', async () => {
     try {
-      const scenarios = db.findAllScenarios();
+      const scenarios = ensureDb().findAllScenarios();
       return { success: true, data: scenarios };
     } catch (error) {
       console.error('시나리오 목록 조회 실패:', error);
@@ -35,7 +42,7 @@ export function setupSQLiteHandlers() {
         };
       }
 
-      const scenario = db.createScenario({
+      const scenario = ensureDb().createScenario({
         name: name.trim(),
         description: description?.trim() || null,
         targetUrl: targetUrl.trim(),
@@ -55,7 +62,7 @@ export function setupSQLiteHandlers() {
         return { success: false, error: '시나리오 ID가 필요합니다.' };
       }
 
-      const scenario = db.findScenarioById(id);
+      const scenario = ensureDb().findScenarioById(id);
 
       if (!scenario) {
         return { success: false, error: '시나리오를 찾을 수 없습니다.' };
@@ -81,7 +88,7 @@ export function setupSQLiteHandlers() {
       if (data.targetUrl?.trim()) updateData.targetUrl = data.targetUrl.trim();
       if (data.code?.trim()) updateData.code = data.code.trim();
 
-      const scenario = db.updateScenario(id, updateData);
+      const scenario = ensureDb().updateScenario(id, updateData);
 
       if (!scenario) {
         return { success: false, error: '시나리오를 찾을 수 없습니다.' };
@@ -100,7 +107,7 @@ export function setupSQLiteHandlers() {
         return { success: false, error: '시나리오 ID가 필요합니다.' };
       }
 
-      const deleted = db.deleteScenario(id);
+      const deleted = ensureDb().deleteScenario(id);
 
       if (!deleted) {
         return { success: false, error: '시나리오를 찾을 수 없습니다.' };
@@ -113,34 +120,59 @@ export function setupSQLiteHandlers() {
     }
   });
 
-  // 시나리오 실행 (데모 구현)
+  // 시나리오 실행 (백그라운드 Playwright 실행)
   ipcMain.handle('scenarios:execute', async (_, { id, code }) => {
     try {
-      // 실행 기록 생성
-      const execution = db.createExecution({
+      // 시나리오에서 코드 가져오기
+      const scenario = ensureDb().findScenarioById(id);
+      if (!scenario) {
+        return { success: false, error: '시나리오를 찾을 수 없습니다.' };
+      }
+
+      const executionCode = code || scenario.code;
+
+      // RUNNING 상태로 실행 기록 생성
+      const execution = ensureDb().createExecution({
         scenarioId: id,
-        status: 'SUCCESS',
-        result: JSON.stringify({
-          success: true,
-          message: 'Playwright 테스트가 성공적으로 완료되었습니다.',
-          duration: '2.3초',
-          steps: ['페이지 로드', '요소 찾기', '클릭 실행', '결과 검증'],
-          timestamp: new Date().toISOString()
-        }),
-        completedAt: new Date().toISOString()
+        status: 'RUNNING',
+        result: null,
+        completedAt: null
       });
 
-      const result = {
-        success: true,
-        output: 'Playwright 테스트가 성공적으로 실행되었습니다.\\n\\n단계:\\n1. 페이지 로드 완료\\n2. 요소 찾기 성공\\n3. 액션 실행 완료\\n4. 결과 검증 성공',
-        screenshots: [],
-        executionId: execution.id
-      };
+      // 백그라운드에서 비동기 실행 (fire-and-forget)
+      ElectronPlaywrightExecutor.executeInBackground(execution.id, id, executionCode);
 
-      return { success: true, data: result };
+      return {
+        success: true,
+        data: {
+          success: true,
+          executionId: execution.id,
+          status: 'RUNNING',
+          message: '백그라운드에서 테스트를 실행 중입니다.'
+        }
+      };
     } catch (error) {
       console.error('시나리오 실행 실패:', error);
       return { success: false, error: '시나리오를 실행할 수 없습니다.' };
+    }
+  });
+
+  // 실행 결과 조회
+  ipcMain.handle('executions:getById', async (_, id: string) => {
+    try {
+      if (!id) {
+        return { success: false, error: '실행 ID가 필요합니다.' };
+      }
+
+      const execution = ensureDb().getExecutionById(id);
+      if (!execution) {
+        return { success: false, error: '실행 기록을 찾을 수 없습니다.' };
+      }
+
+      return { success: true, data: execution };
+    } catch (error) {
+      console.error('실행 결과 조회 실패:', error);
+      return { success: false, error: '실행 결과를 조회할 수 없습니다.' };
     }
   });
 

@@ -16,7 +16,8 @@
     "build:electron": "tsc --project electron/tsconfig.json",
     "download-browsers": "node scripts/copy-browsers.js",
     "install-browsers": "node scripts/download-all-browsers.js",
-    "postinstall": "npm run install-browsers",
+    "rebuild-native": "electron-rebuild -f -w better-sqlite3",
+    "postinstall": "npm run install-browsers && npm run rebuild-native",
     "dist": "npm run build:electron && npm run build:renderer && electron-builder --publish=never",
     "dist:win": "npm run build:electron && npm run build:renderer && npm run ensure-win-browsers && electron-builder --win --publish=never",
     "ensure-win-browsers": "node scripts/ensure-windows-browsers.js && node scripts/create-windows-chrome-wrapper.js",
@@ -79,7 +80,8 @@
       "node_modules/@playwright/**",
       "node_modules/playwright/**",
       "node_modules/playwright-core/**",
-      "node_modules/.bin/playwright*"
+      "node_modules/.bin/playwright*",
+      "node_modules/better-sqlite3/**"
     ],
     "directories": {
       "output": "release"

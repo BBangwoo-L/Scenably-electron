@@ -22,7 +22,20 @@ interface DebugSession {
 
 export class ElectronPlaywrightDebugger {
   private static sessions: Map<string, DebugSession> = new Map();
-  private static tempDir = path.join(process.cwd(), 'tests', 'debug');
+  private static tempDir = path.join(app.getPath('userData'), 'tests', 'debug');
+
+  private static buildNodePath(): string {
+    const entries = [
+      path.resolve(process.cwd(), 'node_modules'),
+      path.resolve(process.resourcesPath, 'app.asar.unpacked', 'node_modules'),
+      path.resolve(process.resourcesPath, 'app', 'node_modules'),
+      path.resolve(process.resourcesPath, 'node_modules')
+    ];
+    if (process.env.NODE_PATH) {
+      entries.push(process.env.NODE_PATH);
+    }
+    return entries.join(path.delimiter);
+  }
 
   private static findPlaywrightBinary(): string {
     const isWin = process.platform === 'win32';
@@ -100,6 +113,21 @@ export class ElectronPlaywrightDebugger {
 
     try {
       const fs = require('fs');
+      // Windows 패키징 환경에서는 시스템 Chrome을 우선 사용 (번들 브라우저 이슈 회피)
+      if (process.platform === 'win32' && app.isPackaged) {
+        const systemPaths = [
+          'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+          'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+          path.join(require('os').homedir(), 'AppData\\Local\\Google\\Chrome\\Application\\chrome.exe')
+        ];
+        for (const systemPath of systemPaths) {
+          if (existsSync(systemPath)) {
+            log(`✅ Found system Chrome for debug: ${systemPath}`);
+            return systemPath;
+          }
+        }
+      }
+
       const chromiumDirs = fs.readdirSync(browserPath).filter((dir: string) =>
         dir.startsWith('chromium-') && fs.statSync(path.join(browserPath, dir)).isDirectory()
       );
@@ -118,19 +146,16 @@ export class ElectronPlaywrightDebugger {
       if (process.platform === 'win32') {
         possiblePaths.push(
           path.join(chromiumDir, 'chrome-win', 'chrome.exe'),
-          path.join(chromiumDir, 'chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium'), // 크로스 플랫폼
           // Windows에서 headless shell 사용 (더 안정적)
           path.join(browserPath, 'chromium_headless_shell-1193', 'chrome-mac', 'headless_shell'),
         );
       } else if (process.platform === 'darwin') {
         possiblePaths.push(
           path.join(chromiumDir, 'chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium'),
-          path.join(chromiumDir, 'chrome-win', 'chrome.exe'), // Windows 빌드용
         );
       } else {
         possiblePaths.push(
           path.join(chromiumDir, 'chrome-linux', 'chrome'),
-          path.join(chromiumDir, 'chrome-mac', 'Chromium.app', 'Contents', 'MacOS', 'Chromium'),
         );
       }
 
@@ -183,6 +208,75 @@ export class ElectronPlaywrightDebugger {
     }
   }
 
+  private static logChromiumDiagnostics(executablePath: string): void {
+    try {
+      const fs = require('fs');
+      const dir = path.dirname(executablePath);
+      const requiredFiles = [
+        'icudtl.dat',
+        'chrome_elf.dll',
+        'v8_context_snapshot.bin',
+        'resources.pak'
+      ];
+
+      log(`🔍 [Debug] Chromium 실행 파일 경로: ${executablePath}`);
+      log(`🔍 [Debug] Chromium 디렉토리: ${dir}`);
+
+      for (const file of requiredFiles) {
+        const fullPath = path.join(dir, file);
+        const exists = fs.existsSync(fullPath);
+        log(`🔍 [Debug] 필수 파일 ${file}: ${exists ? '존재' : '없음'} (${fullPath})`);
+      }
+    } catch (error) {
+      log(`⚠️ [Debug] Chromium 진단 중 오류: ${error}`);
+    }
+  }
+
+  private static async probeChromiumExecutable(executablePath: string): Promise<void> {
+    if (process.env.SCENABLY_CHROMIUM_PROBE !== '1') {
+      return;
+    }
+    return new Promise((resolve) => {
+      try {
+        const child = spawn(executablePath, ['--version'], {
+          stdio: ['ignore', 'pipe', 'pipe'],
+          detached: false
+        });
+
+        let stdout = '';
+        let stderr = '';
+
+        const timeout = setTimeout(() => {
+          try { child.kill(); } catch {}
+          log('⚠️ [Debug] Chromium --version 타임아웃');
+          resolve();
+        }, 5000);
+
+        child.stdout?.on('data', (data) => {
+          stdout += data.toString();
+        });
+        child.stderr?.on('data', (data) => {
+          stderr += data.toString();
+        });
+        child.on('error', (error) => {
+          clearTimeout(timeout);
+          log(`❌ [Debug] Chromium --version 실행 실패: ${error}`);
+          resolve();
+        });
+        child.on('close', (code) => {
+          clearTimeout(timeout);
+          log(`🔍 [Debug] Chromium --version 종료 코드: ${code}`);
+          if (stdout.trim()) log(`🔍 [Debug] Chromium --version stdout: ${stdout.trim()}`);
+          if (stderr.trim()) log(`🔍 [Debug] Chromium --version stderr: ${stderr.trim()}`);
+          resolve();
+        });
+      } catch (error) {
+        log(`⚠️ [Debug] Chromium --version 진단 중 오류: ${error}`);
+        resolve();
+      }
+    });
+  }
+
   static async startDebugSession(code: string, sessionId: string): Promise<{ sessionId: string; message: string }> {
     try {
       log(`🐞 [Debug] Starting debug session: ${sessionId}`);
@@ -203,15 +297,17 @@ export class ElectronPlaywrightDebugger {
       // 디버그 전용 임시 playwright config 생성
       const tempConfigFile = path.join(this.tempDir, `playwright.config.debug-${sessionId}.ts`);
       const chromiumPath = this.getAvailableChromiumExecutablePath();
-      const configContent = `import { defineConfig } from '@playwright/test';
-
-export default defineConfig({
+      if (chromiumPath) {
+        this.logChromiumDiagnostics(chromiumPath);
+        await this.probeChromiumExecutable(chromiumPath);
+      }
+      const configContent = `export default {
   testDir: '.',
   use: {
     browserName: 'chromium',
     ${chromiumPath ? `launchOptions: { executablePath: ${JSON.stringify(chromiumPath)} },` : ''}
   },
-});
+};
 `;
       await writeFile(tempConfigFile, configContent, 'utf-8');
       log('📝 Created temp debug config:', tempConfigFile);
@@ -259,6 +355,12 @@ export default defineConfig({
       let command: string[];
       let executable: string;
 
+      // Playwright test 커맨드의 파일 인자는 정규식 패턴으로 사용됨
+      // 절대경로 전달 시 Windows 백슬래시가 정규식 특수문자로 해석되어 매칭 실패
+      // testDir: '.' 이 config와 같은 디렉토리이므로 파일명만 전달
+      const testFileName = path.basename(session.tempFile);
+      const configFileName = path.basename(session.tempConfigFile);
+
       if (isNodeJsScript) {
         // electron app은 내장 Nodejs로 실행
         executable = app.isPackaged ? process.execPath : 'node';
@@ -266,8 +368,8 @@ export default defineConfig({
           playwrightBin,
           'test',
           '--debug',
-          `--config=${session.tempConfigFile}`,
-          session.tempFile
+          `--config=${configFileName}`,
+          testFileName
         ];
       } else {
         // 바이너리로 실행
@@ -275,8 +377,8 @@ export default defineConfig({
         command = [
           'test',
           '--debug',
-          `--config=${session.tempConfigFile}`,
-          session.tempFile
+          `--config=${configFileName}`,
+          testFileName
         ];
       }
 
@@ -285,12 +387,13 @@ export default defineConfig({
       log('🔧 Debug command:', command.join(' '));
 
       const childProcess = spawn(executable, command, {
-        cwd: process.cwd(),
+        cwd: this.tempDir,
         stdio: ['ignore', 'pipe', 'pipe'],
         detached: false,
         env: {
           ...process.env,
           NODE_ENV: 'development',
+          NODE_PATH: this.buildNodePath(),
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1', // 브라우저 다운로드 방지
           // 브라우저 경로 설정 (개발/패키징 모드 자동 분리)
           PLAYWRIGHT_BROWSERS_PATH: this.getBrowserPath(),

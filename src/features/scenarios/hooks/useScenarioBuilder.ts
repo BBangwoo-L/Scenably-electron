@@ -78,6 +78,10 @@ test('E2E Test for ${targetUrl}', async ({ page }) => {
       throw new Error("시나리오 이름을 입력해주세요");
     }
 
+    if (!scenarioData.targetUrl.trim()) {
+      throw new Error("대상 URL을 입력해주세요");
+    }
+
     try {
       setIsLoading(true);
       setError(null);

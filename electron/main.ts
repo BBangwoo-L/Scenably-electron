@@ -39,9 +39,11 @@ function createWindow(): void {
   mainWindow.loadFile(htmlPath);
 
   mainWindow.once('ready-to-show', () => {
+    mainWindow?.maximize();
     mainWindow?.show();
-    // 디버깅을 위해 개발자 도구 항상 열기
-    mainWindow?.webContents.openDevTools();
+    if (isDevelopment) {
+      mainWindow?.webContents.openDevTools();
+    }
   });
 
   mainWindow.on('closed', () => {

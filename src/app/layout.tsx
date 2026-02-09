@@ -1,5 +1,6 @@
 import { Header } from "@/features/layout";
 import { ToastContainer } from "@/components/toast";
+import { ConfirmModalContainer } from "@/components/confirm-modal";
 import "./globals.css";
 
 export default function RootLayout({
@@ -15,6 +16,7 @@ export default function RootLayout({
           {children}
         </main>
         <ToastContainer />
+        <ConfirmModalContainer />
       </body>
     </html>
   );

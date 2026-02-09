@@ -1,24 +1,30 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { Scenario } from '../lib';
 import { ScenarioService } from '../services';
+import { unifiedApiClient } from '@/shared/lib/electron-api-client';
 
 export function useScenarios() {
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const fetchScenarios = async () => {
+  const fetchScenarios = async (options?: { silent?: boolean }) => {
     try {
-      setIsLoading(true);
+      if (!options?.silent) {
+        setIsLoading(true);
+      }
       setError(null);
       const data = await ScenarioService.getAll();
       setScenarios(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch scenarios');
     } finally {
-      setIsLoading(false);
+      if (!options?.silent) {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -40,6 +46,38 @@ export function useScenarios() {
   useEffect(() => {
     fetchScenarios();
   }, []);
+
+  // Subscribe to execution status change events
+  useEffect(() => {
+    const cleanup = unifiedApiClient.onExecutionStatusChanged(() => {
+      fetchScenarios({ silent: true });
+    });
+
+    return cleanup;
+  }, []);
+
+  // Polling fallback: if any scenario has RUNNING status, poll every 3 seconds
+  useEffect(() => {
+    const hasRunning = scenarios.some(s =>
+      s.executions.length > 0 && s.executions[0].status === 'RUNNING'
+    );
+
+    if (hasRunning && !pollingRef.current) {
+      pollingRef.current = setInterval(() => {
+        fetchScenarios({ silent: true });
+      }, 3000);
+    } else if (!hasRunning && pollingRef.current) {
+      clearInterval(pollingRef.current);
+      pollingRef.current = null;
+    }
+
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+    };
+  }, [scenarios]);
 
   return {
     scenarios,

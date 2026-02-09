@@ -1,4 +1,4 @@
-import Database from 'better-sqlite3';
+import type Database from 'better-sqlite3';
 import { app } from 'electron';
 import { join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
@@ -26,6 +26,18 @@ export class ScenablyDatabase {
   private db: Database.Database;
 
   constructor() {
+    let BetterSqlite3: typeof import('better-sqlite3');
+    try {
+      // 네이티브 모듈 ABI 불일치로 import 단계에서 크래시 나는 것을 방지
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      BetterSqlite3 = require('better-sqlite3') as typeof import('better-sqlite3');
+    } catch (error) {
+      throw new Error(
+        `better-sqlite3 로드 실패: Electron ABI 불일치 가능성이 있습니다. ` +
+        `npm run rebuild-native 를 실행해주세요. (${error instanceof Error ? error.message : 'unknown error'})`
+      );
+    }
+
     // 사용자 데이터 폴더에 데이터베이스 생성
     const userDataPath = app.getPath('userData');
     const dbDir = join(userDataPath, 'database');
@@ -38,7 +50,7 @@ export class ScenablyDatabase {
 
     console.log('SQLite 데이터베이스 초기화:', dbPath);
 
-    this.db = new Database(dbPath);
+    this.db = new BetterSqlite3(dbPath);
     this.initTables();
   }
 
@@ -175,6 +187,11 @@ export class ScenablyDatabase {
   }
 
   // Execution CRUD 메서드들
+  getExecutionById(id: string): Execution | null {
+    const execution = this.db.prepare('SELECT * FROM executions WHERE id = ?').get(id) as Execution | undefined;
+    return execution || null;
+  }
+
   findExecutionsByScenarioId(scenarioId: string, limit?: number): Execution[] {
     let query = `
       SELECT id, scenarioId, status, result, startedAt, completedAt

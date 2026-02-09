@@ -27,6 +27,7 @@ import {
   Copy,
   RotateCcw
 } from "lucide-react";
+import { useConfirmModalStore } from "@/stores/confirm-modal-store";
 
 interface FullscreenCodeEditorProps {
   isOpen: boolean;
@@ -50,6 +51,7 @@ export function FullscreenCodeEditor({
   const [hasChanges, setHasChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const { openConfirmModal } = useConfirmModalStore();
 
   useEffect(() => {
     if (isOpen) {
@@ -81,9 +83,10 @@ export function FullscreenCodeEditor({
     }
   };
 
-  const handleCancel = () => {
+  const handleCancel = async () => {
     if (hasChanges) {
-      if (confirm("변경사항이 저장되지 않습니다. 정말 취소하시겠습니까?")) {
+      const confirmed = await openConfirmModal({ message: "변경사항이 저장되지 않습니다. 정말 취소하시겠습니까?", isAlert: false });
+      if (confirmed) {
         setEditedCode(code);
         setHasChanges(false);
         onClose();
@@ -93,8 +96,9 @@ export function FullscreenCodeEditor({
     }
   };
 
-  const handleReset = () => {
-    if (confirm("원본 코드로 되돌리시겠습니까? 현재 변경사항은 모두 사라집니다.")) {
+  const handleReset = async () => {
+    const confirmed = await openConfirmModal({ message: "원본 코드로 되돌리시겠습니까? 현재 변경사항은 모두 사라집니다.", isAlert: false });
+    if (confirmed) {
       setEditedCode(code);
     }
   };

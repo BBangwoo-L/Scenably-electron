@@ -2,11 +2,13 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button, Input, Label } from "@/shared/ui";
 import { Globe, ArrowRight } from "lucide-react";
+import { useConfirmModalStore } from "@/stores/confirm-modal-store";
 
 export function UrlInput() {
   const [url, setUrl] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const { openConfirmModal } = useConfirmModalStore();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,7 +28,7 @@ export function UrlInput() {
       // Navigate to scenario builder with the URL
       navigate(`/scenario/new?url=${encodeURIComponent(validUrl)}`);
     } catch (error) {
-      alert("올바른 URL을 입력해주세요");
+      openConfirmModal({ message: "올바른 URL을 입력해주세요" });
     } finally {
       setIsLoading(false);
     }

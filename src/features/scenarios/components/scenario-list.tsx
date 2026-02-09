@@ -9,10 +9,14 @@ import { ScenarioFilterBar } from "./scenario-filter-bar";
 import { useScenarios, useScenarioActions } from "../hooks";
 import { type ViewModeOption } from "@/shared/lib";
 import { filterScenarios, sortScenarios, groupScenarios, type ScenarioFilterOptions, type ScenarioGroupByOption } from "../lib";
+import { useConfirmModalStore } from "@/stores/confirm-modal-store";
+import { useToastStore } from "@/stores/toast-store";
 
 export function ScenarioList() {
   const { scenarios, isLoading, fetchScenarios, updateScenarioStatus } = useScenarios();
   const { isLoading: actionLoading, executeScenario, deleteScenario, debugScenario, editScenario } = useScenarioActions();
+  const { openConfirmModal } = useConfirmModalStore();
+  const { showToast } = useToastStore();
 
   const [filters, setFilters] = useState<ScenarioFilterOptions>({
     search: "",
@@ -41,40 +45,38 @@ export function ScenarioList() {
       // 즉시 상태를 RUNNING으로 업데이트하여 UI 반영
       updateScenarioStatus(scenarioId, 'RUNNING');
 
-      const result = await executeScenario(scenarioId);
+      await executeScenario(scenarioId);
 
-      const statusMessage = result.success
-        ? `✅ 테스트 실행 성공!\n실행 ID: ${result.executionId}`
-        : `❌ 테스트 실행 실패!\n실행 ID: ${result.executionId}\n오류: ${result.error}`;
-
-      alert(statusMessage);
+      showToast({
+        title: "실행 시작",
+        message: "백그라운드에서 테스트를 실행 중입니다. 완료 시 자동으로 결과가 반영됩니다.",
+        type: "info",
+        duration: 3000
+      });
     } catch (error) {
-      alert(error instanceof Error ? error.message : "❌ 테스트 실행에 실패했습니다");
-    } finally {
-      // 항상 최신 상태로 새로고침
+      await openConfirmModal({ message: error instanceof Error ? error.message : "❌ 테스트 실행에 실패했습니다" });
       fetchScenarios();
     }
   };
 
   const handleDelete = async (scenarioId: string) => {
-    if (!confirm("정말로 이 시나리오를 삭제하시겠습니까?")) {
-      return;
-    }
+    const confirmed = await openConfirmModal({ message: "정말로 이 시나리오를 삭제하시겠습니까?", isAlert: false });
+    if (!confirmed) return;
 
     try {
       await deleteScenario(scenarioId);
       fetchScenarios();
     } catch (error) {
-      alert(error instanceof Error ? error.message : "시나리오 삭제에 실패했습니다");
+      await openConfirmModal({ message: error instanceof Error ? error.message : "시나리오 삭제에 실패했습니다" });
     }
   };
 
   const handleDebug = async (scenarioId: string) => {
     try {
       const result = await debugScenario(scenarioId);
-      alert(`디버그 모드가 정상적으로 종료 됐습니다.!\n세션 ID: ${result.sessionId}`);
+      await openConfirmModal({ message: `디버그 모드가 정상적으로 종료 됐습니다.!\n세션 ID: ${result.sessionId}` });
     } catch (error) {
-      alert(error instanceof Error ? error.message : "디버그 모드가 실패했습니다.\n 프로세스를 한 단계씩 진행하면서 실패 지점을 찾아보세요!");
+      await openConfirmModal({ message: error instanceof Error ? error.message : "디버그 모드가 실패했습니다.\n 프로세스를 한 단계씩 진행하면서 실패 지점을 찾아보세요!" });
     }
   };
 
