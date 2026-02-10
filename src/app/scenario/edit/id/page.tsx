@@ -5,8 +5,9 @@ import { useParams, useRouter } from "next/navigation";
 
 import { Button, Card, CardContent, CardHeader, CardTitle, Input, Label, Textarea } from "@/shared/ui";
 import { EnhancedCodePreview, FullscreenCodeEditor } from "@/features/scenarios/components";
-import { ArrowLeft, Save, Play, Wand2, Settings } from "lucide-react";
+import { ArrowLeft, Save, Bug, Wand2, Settings } from "lucide-react";
 import { useConfirmModalStore } from "@/stores/confirm-modal-store";
+import { ScenarioService } from "@/features/scenarios/services";
 
 interface Scenario {
   id: string;
@@ -134,25 +135,15 @@ export default function EditScenarioPage() {
     }
   };
 
-  const handleTestRun = async () => {
+  const handleDebugRun = async () => {
     if (!scenario) return;
 
     try {
       setIsLoading(true);
-
-      const executeResponse = await fetch(`/api/scenarios/${scenarioId}/execute`, {
-        method: "POST",
-      });
-
-      if (executeResponse.ok) {
-        const result = await executeResponse.json();
-        await openConfirmModal({ message: `Test execution started!\nExecution ID: ${result.executionId}\nStatus: ${result.status}` });
-      } else {
-        const error = await executeResponse.json();
-        await openConfirmModal({ message: `Test execution failed: ${error.error}` });
-      }
+      const result = await ScenarioService.debug(scenario.code);
+      await openConfirmModal({ message: `디버그 모드가 시작되었습니다!\n세션 ID: ${result.sessionId}` });
     } catch (error) {
-      await openConfirmModal({ message: "Failed to run test" });
+      await openConfirmModal({ message: "디버그 모드 실행에 실패했습니다" });
       console.error(error);
     } finally {
       setIsLoading(false);
@@ -275,9 +266,14 @@ export default function EditScenarioPage() {
                 {isLoading ? "저장 중..." : "시나리오 저장"}
               </Button>
 
-              <Button onClick={handleTestRun} variant="outline" className="w-full" disabled={isLoading}>
-                <Play className="mr-2 h-4 w-4" />
-                테스트 실행
+              <Button
+                onClick={handleDebugRun}
+                variant="outline"
+                className="w-full text-green-600 border-green-200 hover:bg-green-50"
+                disabled={isLoading}
+              >
+                <Bug className="mr-2 h-4 w-4" />
+                디버그 모드 실행
               </Button>
 
               <Button

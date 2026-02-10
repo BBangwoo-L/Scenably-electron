@@ -55,9 +55,9 @@ export function QuickStartGuide() {
               <Wand2 className="h-4 w-4 text-orange-600" />
             </div>
             <div>
-              <h3 className="font-medium text-sm">4. AI 개선</h3>
+              <h3 className="font-medium text-sm">4. AI 개선 (추후 제공)</h3>
               <p className="text-xs text-muted-foreground mt-1">
-                "AI로 수정하기"를 사용하여 자연어 요청으로 테스트를 개선하세요
+                현재는 제공되지 않으며, 추후 업데이트에서 추가될 예정입니다
               </p>
             </div>
           </div>
@@ -80,8 +80,8 @@ export function QuickStartGuide() {
           <ul className="space-y-1 text-xs text-blue-800">
             <li>• 빠른 설정을 위해 템플릿 모드부터 시작하세요</li>
             <li>• 복잡한 사용자 상호작용에는 레코딩 모드를 사용하세요</li>
-            <li>• AI에게 접근성 검사, 성능 테스트, 폼 검증 추가를 요청해보세요</li>
             <li>• 같은 시나리오를 여러 번 실행하여 다른 브라우저에서 테스트하세요</li>
+            <li>• AI 개선 기능은 추후 업데이트에서 제공될 예정입니다</li>
           </ul>
         </div>
       </CardContent>
