@@ -7,7 +7,7 @@ import { ScenarioInfoForm } from "./scenario-info-form";
 import { RecordingControls, TEMPLATE_CODE } from "@/features/recording/components";
 import { CodeEditor } from "./code-editor";
 import { useConfirmModalStore } from "@/stores/confirm-modal-store";
-import { ScheduleService } from "@/features/scenarios/services";
+import { ScheduleService, ScenarioService } from "@/features/scenarios/services";
 import { isElectron } from "@/shared/lib/electron-api-client";
 
 interface ScenarioBuilderProps {
@@ -42,6 +42,7 @@ export function ScenarioBuilder({ scenarioId }: ScenarioBuilderProps) {
   const nameInputRef = useRef<HTMLInputElement>(null);
   const urlInputRef = useRef<HTMLInputElement>(null);
   const [scheduleId, setScheduleId] = useState<string | undefined>(undefined);
+  const [existingUrls, setExistingUrls] = useState<string[]>([]);
 
   useEffect(() => {
     if (!scenarioId || !isElectron) {
@@ -61,6 +62,34 @@ export function ScenarioBuilder({ scenarioId }: ScenarioBuilderProps) {
       mounted = false;
     };
   }, [scenarioId]);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const scenarios = await ScenarioService.getAll();
+        if (!mounted) {
+          return;
+        }
+        const uniqueUrls = Array.from(
+          new Set(
+            scenarios
+              .map((scenario) => scenario.targetUrl?.trim())
+              .filter((url): url is string => Boolean(url))
+          )
+        );
+        setExistingUrls(uniqueUrls);
+      } catch {
+        if (mounted) {
+          setExistingUrls([]);
+        }
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const clearFieldError = (field: "name" | "targetUrl") => {
     setFieldErrors((prev) => ({ ...prev, [field]: undefined }));
@@ -183,6 +212,7 @@ export function ScenarioBuilder({ scenarioId }: ScenarioBuilderProps) {
           inputRefs={{ name: nameInputRef, targetUrl: urlInputRef }}
           onClearError={clearFieldError}
           scheduleId={scheduleId}
+          existingUrls={existingUrls}
         />
 
         <RecordingControls

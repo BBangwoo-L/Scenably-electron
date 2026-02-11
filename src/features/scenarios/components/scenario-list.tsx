@@ -120,6 +120,8 @@ export function ScenarioList() {
         onFilterChange={setFilters}
         onGroupByChange={setGroupBy}
         onViewModeChange={setViewMode}
+        onRefresh={fetchScenarios}
+        isRefreshing={isLoading}
         viewMode={viewMode}
         totalCount={scenarios.length}
         filteredCount={filteredAndSortedScenarios.length}

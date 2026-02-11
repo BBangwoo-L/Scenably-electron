@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
-import { Button, Switch } from "@/shared/ui";
+import { Button, Switch, Badge } from "@/shared/ui";
 import { ScheduleService, type ScenarioScheduleWithScenario, type ScheduleRun } from "@/features/scenarios/services";
 import { unifiedApiClient } from "@/shared/lib/electron-api-client";
 import { ExecutionDetailDialog } from "@/features/scenarios/components/execution-detail-dialog";
@@ -105,6 +105,20 @@ export default function ScheduleDetailPage() {
       .join(", ");
   };
 
+  const getStatusBadge = (status?: string | null) => {
+    const normalized = (status || "PENDING").toUpperCase();
+    if (normalized === "RUNNING") {
+      return { label: "실행중", className: "bg-blue-100 text-blue-800" };
+    }
+    if (normalized === "SUCCESS") {
+      return { label: "성공", className: "bg-green-100 text-green-800" };
+    }
+    if (normalized === "FAILURE") {
+      return { label: "실패", className: "bg-red-100 text-red-800" };
+    }
+    return { label: "대기", className: "bg-gray-100 text-gray-800" };
+  };
+
   return (
     <div className="container mx-auto py-6 sm:py-8 px-3 sm:px-4">
       <header className="mb-6 flex items-center justify-between">
@@ -185,44 +199,43 @@ export default function ScheduleDetailPage() {
             {runs.length === 0 ? (
               <p className="text-sm text-muted-foreground">실행 이력이 없습니다.</p>
             ) : (
-              <div className="border rounded-lg">
-                <div className="hidden md:grid grid-cols-[1fr,1.2fr,1.2fr,0.7fr] gap-2 px-3 py-2 text-xs text-muted-foreground border-b">
-                  <div>상태</div>
-                  <div>시작</div>
-                  <div>완료</div>
-                  <div>로그</div>
-                </div>
-                {runs.map((run) => (
-                  <div
-                    key={run.id}
-                    className="grid grid-cols-1 md:grid-cols-[1fr,1.2fr,1.2fr,0.7fr] gap-2 px-3 py-3 border-b last:border-b-0 text-sm"
-                  >
-                    <div>
-                      {run.status === "PENDING"
-                        ? "대기"
-                        : run.status === "RUNNING"
-                          ? "실행중"
-                          : run.status === "SUCCESS"
-                            ? "성공"
-                            : "실패"}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {new Date(run.startedAt).toLocaleString()}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {run.completedAt ? new Date(run.completedAt).toLocaleString() : "-"}
-                    </div>
-                    <div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleOpenLog(run.executionId)}
-                      >
-                        로그 보기
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+              <div className="border rounded-lg overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="text-xs text-muted-foreground border-b bg-muted/30">
+                    <tr>
+                      <th className="text-left px-4 py-2 w-[140px]">상태</th>
+                      <th className="text-left px-4 py-2">시작</th>
+                      <th className="text-left px-4 py-2">완료</th>
+                      <th className="text-left px-4 py-2 w-[120px]">로그</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {runs.map((run) => (
+                      <tr key={run.id} className="border-b last:border-b-0">
+                        <td className="px-4 py-3">
+                          <Badge variant="secondary" className={getStatusBadge(run.status).className}>
+                            {getStatusBadge(run.status).label}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-3 text-xs text-muted-foreground">
+                          {new Date(run.startedAt).toLocaleString()}
+                        </td>
+                        <td className="px-4 py-3 text-xs text-muted-foreground">
+                          {run.completedAt ? new Date(run.completedAt).toLocaleString() : "-"}
+                        </td>
+                        <td className="px-4 py-3">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleOpenLog(run.executionId)}
+                          >
+                            로그 보기
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>

@@ -5,7 +5,7 @@ import { Link } from "react-router-dom";
 import { Button, Input, Badge, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Switch, Card, CardContent, CardHeader, CardTitle } from "@/shared/ui";
 import { ScheduleService, type ScenarioScheduleWithScenario } from "@/features/scenarios/services";
 import { isElectron } from "@/shared/lib/electron-api-client";
-import { Filter, Search, Link as LinkIcon, Plus } from "lucide-react";
+import { Filter, Search, Link as LinkIcon, Plus, RefreshCw } from "lucide-react";
 
 export default function ScheduleManagementPage() {
   const [schedules, setSchedules] = useState<ScenarioScheduleWithScenario[]>([]);
@@ -65,6 +65,20 @@ export default function ScheduleManagementPage() {
     if (status === "SUCCESS") return "성공";
     if (status === "FAILURE") return "실패";
     return status;
+  };
+
+  const getStatusBadge = (status?: string | null) => {
+    const normalized = (status || "PENDING").toUpperCase();
+    if (normalized === "RUNNING") {
+      return { label: "실행중", className: "bg-blue-100 text-blue-800" };
+    }
+    if (normalized === "SUCCESS") {
+      return { label: "성공", className: "bg-green-100 text-green-800" };
+    }
+    if (normalized === "FAILURE") {
+      return { label: "실패", className: "bg-red-100 text-red-800" };
+    }
+    return { label: "대기", className: "bg-gray-100 text-gray-800" };
   };
 
   const extractDomain = (url: string) => {
@@ -132,6 +146,10 @@ export default function ScheduleManagementPage() {
 
   useEffect(() => {
     fetchSchedules();
+    const interval = setInterval(() => {
+      fetchSchedules();
+    }, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleToggle = async (scenarioId: string, enabled: boolean) => {
@@ -250,6 +268,16 @@ export default function ScheduleManagementPage() {
                       className="pl-10"
                     />
                   </div>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={fetchSchedules}
+                    disabled={loading}
+                    title="새로고침"
+                    aria-label="새로고침"
+                  >
+                    <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+                  </Button>
                   <Button
                     variant="outline"
                     size="sm"
@@ -397,7 +425,11 @@ export default function ScheduleManagementPage() {
                                         ? `${schedule.dayOfMonth || 1}일`
                                         : "-"}
                                   </td>
-                                  <td className="px-3 py-3">{formatStatus(schedule.lastStatus)}</td>
+                                  <td className="px-3 py-3">
+                                    <Badge variant="secondary" className={getStatusBadge(schedule.lastStatus).className}>
+                                      {getStatusBadge(schedule.lastStatus).label}
+                                    </Badge>
+                                  </td>
                                   <td className="px-3 py-3">
                                     <Switch
                                       checked={!!schedule.enabled}

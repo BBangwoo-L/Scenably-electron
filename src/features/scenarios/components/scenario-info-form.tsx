@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Balloon } from "@/shared/components";
 import { Card, CardContent, CardHeader, CardTitle, Input, Label, Textarea } from "@/shared/ui";
 import { Link } from "react-router-dom";
@@ -7,6 +8,7 @@ import type { ScenarioData } from "../hooks";
 interface ScenarioInfoFormProps {
   scenarioData: ScenarioData;
   onUpdate: (updates: Partial<ScenarioData>) => void;
+  existingUrls?: string[];
   errors?: {
     name?: string;
     targetUrl?: string;
@@ -22,11 +24,60 @@ interface ScenarioInfoFormProps {
 export function ScenarioInfoForm({
   scenarioData,
   onUpdate,
+  existingUrls = [],
   errors,
   inputRefs,
   onClearError,
   scheduleId
 }: ScenarioInfoFormProps) {
+  const [isUrlSuggestionOpen, setIsUrlSuggestionOpen] = useState(false);
+  const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const filteredUrlSuggestions = useMemo(() => {
+    const currentValue = scenarioData.targetUrl.trim().toLowerCase();
+    const suggestions = existingUrls.filter((url) => {
+      const normalized = url.trim().toLowerCase();
+      if (!normalized) {
+        return false;
+      }
+      if (normalized === currentValue) {
+        return false;
+      }
+      if (!currentValue) {
+        return true;
+      }
+      return normalized.includes(currentValue);
+    });
+
+    return suggestions.slice(0, 6);
+  }, [existingUrls, scenarioData.targetUrl]);
+
+  const clearCloseTimeout = () => {
+    if (!closeTimeoutRef.current) {
+      return;
+    }
+    clearTimeout(closeTimeoutRef.current);
+    closeTimeoutRef.current = null;
+  };
+
+  const handleSuggestionBlur = () => {
+    clearCloseTimeout();
+    closeTimeoutRef.current = setTimeout(() => {
+      setIsUrlSuggestionOpen(false);
+    }, 120);
+  };
+
+  const handleSuggestionFocus = () => {
+    clearCloseTimeout();
+    setIsUrlSuggestionOpen(true);
+  };
+
+  useEffect(() => {
+    return () => {
+      clearCloseTimeout();
+    };
+  }, []);
+
   return (
     <Card>
       <CardHeader>
@@ -85,11 +136,39 @@ export function ScenarioInfoForm({
             value={scenarioData.targetUrl}
             aria-invalid={!!errors?.targetUrl}
             ref={inputRefs?.targetUrl}
+            autoComplete="off"
             onChange={(e) => {
               onUpdate({ targetUrl: e.target.value });
               if (errors?.targetUrl) onClearError?.("targetUrl");
+              if (!isUrlSuggestionOpen) {
+                setIsUrlSuggestionOpen(true);
+              }
             }}
+            onFocus={handleSuggestionFocus}
+            onBlur={handleSuggestionBlur}
           />
+          {isUrlSuggestionOpen && filteredUrlSuggestions.length > 0 && (
+            <div className="absolute left-0 right-0 top-full mt-2 z-10 overflow-hidden rounded-md border bg-popover shadow-md">
+              <ul className="max-h-52 overflow-y-auto py-1">
+                {filteredUrlSuggestions.map((url) => (
+                  <li key={url}>
+                    <button
+                      type="button"
+                      className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-accent hover:text-accent-foreground"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => {
+                        onUpdate({ targetUrl: url });
+                        if (errors?.targetUrl) onClearError?.("targetUrl");
+                        setIsUrlSuggestionOpen(false);
+                      }}
+                    >
+                      {url}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <Balloon
             open={!!errors?.targetUrl}
             positionClassName="left-0 top-full mt-2"

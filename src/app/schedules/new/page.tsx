@@ -7,10 +7,12 @@ import { ScheduleService, ScenarioService, type ScenarioSchedule } from "@/featu
 import type { Scenario } from "@/features/scenarios/lib";
 import { isElectron } from "@/shared/lib/electron-api-client";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useConfirmModalStore } from "@/stores/confirm-modal-store";
 
 export default function ScheduleCreatePage() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { openConfirmModal } = useConfirmModalStore();
   const searchParams = new URLSearchParams(location.search);
   const editId = searchParams.get("edit");
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
@@ -84,12 +86,12 @@ export default function ScheduleCreatePage() {
       setLoading(true);
       setError(null);
       await ScheduleService.save(form);
-      if (!isWindows) {
-        setError("macOS에서는 등록만 가능하며 실제 실행은 Windows 앱에서만 가능합니다.");
-      }
-      if (isEditMode) {
+      if (isWindows) {
+        await openConfirmModal({ message: isEditMode ? "스케줄이 편집되었습니다." : "스케줄이 등록되었습니다." });
         navigate("/schedules");
+        return;
       }
+      setError("macOS에서는 등록만 가능하며 실제 실행은 Windows 앱에서만 가능합니다.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "스케줄 저장에 실패했습니다");
     } finally {

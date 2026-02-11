@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Search, Filter, X, Grid, List } from "lucide-react";
+import { Search, Filter, X, Grid, List, RefreshCw } from "lucide-react";
 import { Input, Button, Badge, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui";
 import { type ScenarioFilterOptions, type ScenarioFilterBarProps, SCENARIO_STATUS_OPTIONS, SCENARIO_SORT_OPTIONS, SCENARIO_GROUP_OPTIONS } from "../lib";
 
@@ -9,6 +9,8 @@ export function ScenarioFilterBar({
   onFilterChange,
   onGroupByChange,
   onViewModeChange,
+  onRefresh,
+  isRefreshing = false,
   viewMode = "card",
   totalCount,
   filteredCount
@@ -59,6 +61,19 @@ export function ScenarioFilterBar({
         </div>
 
         <div className="flex items-center gap-2 justify-between sm:justify-start">
+          {onRefresh && (
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={onRefresh}
+              disabled={isRefreshing}
+              title="새로고침"
+              aria-label="새로고침"
+            >
+              <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+            </Button>
+          )}
+
           <Button
             variant="outline"
             size="sm"

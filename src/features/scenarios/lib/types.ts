@@ -84,6 +84,8 @@ export interface ScenarioFilterBarProps {
   onFilterChange: (filters: ScenarioFilterOptions) => void;
   onGroupByChange?: (groupBy: ScenarioGroupByOption) => void;
   onViewModeChange?: (viewMode: ViewModeOption) => void;
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
   viewMode?: ViewModeOption;
   totalCount: number;
   filteredCount: number;
