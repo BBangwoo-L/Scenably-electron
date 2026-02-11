@@ -10,7 +10,7 @@ export default function Home() {
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex-1">
             <p className="text-muted-foreground text-sm sm:text-base">
-              AI 도움으로 웹사이트 E2E 테스트를 생성, 관리, 실행하세요
+              자주하는 테스트 시나리오를 저장하시고 실행하세요😊
             </p>
           </div>
           <Link to="/scenario/new" className="w-full sm:w-auto">

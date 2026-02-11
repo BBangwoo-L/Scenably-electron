@@ -6,8 +6,12 @@ import HomePage from '../../src/app/page';
 import ScenarioBuilderPage from '../../src/app/scenario/new/page';
 import ScenarioEditPage from '../../src/app/scenario/edit/page';
 import TestOptimizerPage from '../../src/app/test-optimizer/page';
+import ScheduleManagementPage from '../../src/app/schedules/page';
+import ScheduleDetailPage from '../../src/app/schedules/id/page';
+import ScheduleCreatePage from '../../src/app/schedules/new/page';
 import { ToastContainer } from '../../src/components/toast';
 import { ConfirmModalContainer } from '../../src/components/confirm-modal';
+import { RecordingNotifier } from '../../src/components/recording-notifier';
 import '../../src/app/globals.css';
 
 // Electron API 타입 정의
@@ -34,6 +38,14 @@ declare global {
       ai: {
         modify: (code: string, instruction: string) => Promise<any>;
       };
+      schedules: {
+        getByScenarioId: (scenarioId: string) => Promise<any>;
+        save: (data: any) => Promise<any>;
+        toggle: (scenarioId: string, enabled: boolean) => Promise<any>;
+        delete: (scenarioId: string) => Promise<any>;
+        list: () => Promise<any>;
+        runs: (scheduleId: string) => Promise<any>;
+      };
     };
   }
 }
@@ -49,9 +61,13 @@ function App() {
             <Route path="/scenario/new" element={<ScenarioBuilderPage />} />
             <Route path="/scenario/edit/:id" element={<ScenarioEditPage />} />
             <Route path="/test-optimizer" element={<TestOptimizerPage />} />
+            <Route path="/schedules" element={<ScheduleManagementPage />} />
+            <Route path="/schedules/:id" element={<ScheduleDetailPage />} />
+            <Route path="/schedules/new" element={<ScheduleCreatePage />} />
           </Routes>
         </main>
         <ToastContainer />
+        <RecordingNotifier />
         <ConfirmModalContainer />
       </div>
     </Router>

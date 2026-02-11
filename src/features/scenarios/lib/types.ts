@@ -11,6 +11,7 @@ export interface Scenario {
   code: string;
   createdAt: string;
   updatedAt: string;
+  scheduleId?: string;
   executions: Array<{
     id: string;
     status: "PENDING" | "RUNNING" | "SUCCESS" | "FAILED";

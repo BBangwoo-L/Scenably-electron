@@ -135,10 +135,52 @@ class ElectronApiClient {
     return this.handleElectronResponse(response);
   }
 
+  onRecordingError(callback: (data: any) => void): () => void {
+    if (!isElectron) return () => {};
+    return window.electronAPI.recording.onError(callback);
+  }
+
   // AI 관련 API
   async modifyCode(code: string, instruction: string) {
     if (!isElectron) throw new Error('Electron 환경이 아닙니다.');
     const response = await window.electronAPI.ai.modify(code, instruction);
+    return this.handleElectronResponse(response);
+  }
+
+  // 스케줄 관련 API
+  async getScheduleByScenarioId(scenarioId: string) {
+    if (!isElectron) throw new Error('Electron 환경이 아닙니다.');
+    const response = await window.electronAPI.schedules.getByScenarioId(scenarioId);
+    return this.handleElectronResponse(response);
+  }
+
+  async saveSchedule(data: any) {
+    if (!isElectron) throw new Error('Electron 환경이 아닙니다.');
+    const response = await window.electronAPI.schedules.save(data);
+    return this.handleElectronResponse(response);
+  }
+
+  async toggleSchedule(scenarioId: string, enabled: boolean) {
+    if (!isElectron) throw new Error('Electron 환경이 아닙니다.');
+    const response = await window.electronAPI.schedules.toggle(scenarioId, enabled);
+    return this.handleElectronResponse(response);
+  }
+
+  async deleteSchedule(scenarioId: string) {
+    if (!isElectron) throw new Error('Electron 환경이 아닙니다.');
+    const response = await window.electronAPI.schedules.delete(scenarioId);
+    return this.handleElectronResponse(response);
+  }
+
+  async listSchedules() {
+    if (!isElectron) throw new Error('Electron 환경이 아닙니다.');
+    const response = await window.electronAPI.schedules.list();
+    return this.handleElectronResponse(response);
+  }
+
+  async listScheduleRuns(scheduleId: string) {
+    if (!isElectron) throw new Error('Electron 환경이 아닙니다.');
+    const response = await window.electronAPI.schedules.runs(scheduleId);
     return this.handleElectronResponse(response);
   }
 }
@@ -259,6 +301,10 @@ class UnifiedApiClient {
     );
   }
 
+  onRecordingError(callback: (data: any) => void): () => void {
+    return this.electronClient.onRecordingError(callback);
+  }
+
   // 실행 API
   async getExecutionById(id: string) {
     const result = await this.callAPI(
@@ -293,6 +339,31 @@ class UnifiedApiClient {
       'POST',
       { code, instruction }
     );
+  }
+
+  // 스케줄 API (Electron 전용)
+  async getScheduleByScenarioId(scenarioId: string) {
+    return this.electronClient.getScheduleByScenarioId(scenarioId);
+  }
+
+  async saveSchedule(data: any) {
+    return this.electronClient.saveSchedule(data);
+  }
+
+  async toggleSchedule(scenarioId: string, enabled: boolean) {
+    return this.electronClient.toggleSchedule(scenarioId, enabled);
+  }
+
+  async deleteSchedule(scenarioId: string) {
+    return this.electronClient.deleteSchedule(scenarioId);
+  }
+
+  async listSchedules() {
+    return this.electronClient.listSchedules();
+  }
+
+  async listScheduleRuns(scheduleId: string) {
+    return this.electronClient.listScheduleRuns(scheduleId);
   }
 }
 

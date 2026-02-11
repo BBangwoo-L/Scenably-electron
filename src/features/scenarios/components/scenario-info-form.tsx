@@ -1,5 +1,7 @@
 import { Balloon } from "@/shared/components";
 import { Card, CardContent, CardHeader, CardTitle, Input, Label, Textarea } from "@/shared/ui";
+import { Link } from "react-router-dom";
+import { Link as LinkIcon } from "lucide-react";
 import type { ScenarioData } from "../hooks";
 
 interface ScenarioInfoFormProps {
@@ -14,6 +16,7 @@ interface ScenarioInfoFormProps {
     targetUrl?: React.RefObject<HTMLInputElement>;
   };
   onClearError?: (field: "name" | "targetUrl") => void;
+  scheduleId?: string;
 }
 
 export function ScenarioInfoForm({
@@ -21,12 +24,24 @@ export function ScenarioInfoForm({
   onUpdate,
   errors,
   inputRefs,
-  onClearError
+  onClearError,
+  scheduleId
 }: ScenarioInfoFormProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>시나리오 정보</CardTitle>
+        <div className="flex items-center justify-between gap-2">
+          <CardTitle>시나리오 정보</CardTitle>
+          {scheduleId && (
+            <Link
+              to={`/schedules/${scheduleId}`}
+              className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+            >
+              <LinkIcon className="h-3 w-3" />
+              스케줄 보기
+            </Link>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="space-y-5">
         <div className="space-y-1.5 relative">

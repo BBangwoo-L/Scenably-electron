@@ -8,6 +8,7 @@ const path_1 = require("path");
 const electron_log_1 = __importDefault(require("electron-log"));
 const ipc_handlers_sqlite_1 = require("./ipc-handlers-sqlite");
 const database_sqlite_1 = require("./database-sqlite");
+const playwright_electron_executor_1 = require("./playwright-electron-executor");
 // electron-log 설정
 electron_log_1.default.info('🚀 Scenably Electron Main Process Started');
 electron_log_1.default.info(`🔍 Process info - execPath: ${process.execPath}`);
@@ -18,6 +19,8 @@ electron_log_1.default.info(`🔍 Process info - NODE_ENV: ${process.env.NODE_EN
 // SQLite 데이터베이스는 자동으로 초기화됩니다
 const isDevelopment = process.env.NODE_ENV === 'development';
 let mainWindow = null;
+const scheduleArg = process.argv.find((arg) => arg.startsWith('--run-schedule='));
+const runScheduleId = scheduleArg ? scheduleArg.split('=')[1] : null;
 function createWindow() {
     mainWindow = new electron_1.BrowserWindow({
         title: 'Scenably - E2E Testing Scenario Builder',
@@ -50,6 +53,39 @@ electron_1.app.whenReady().then(async () => {
     try {
         electron_log_1.default.info('🏁 Scenably 앱 시작 중...');
         console.log('Scenably 앱 시작 중...');
+        if (runScheduleId) {
+            electron_log_1.default.info(`🗓️ 스케줄 실행 모드: ${runScheduleId}`);
+            const db = (0, database_sqlite_1.getDatabase)();
+            const schedule = db.getScheduleById(runScheduleId);
+            if (!schedule || schedule.enabled !== 1) {
+                electron_log_1.default.info('🗓️ 스케줄이 비활성화되었거나 존재하지 않습니다.');
+                electron_1.app.quit();
+                return;
+            }
+            const scenario = db.findScenarioById(schedule.scenarioId);
+            if (!scenario) {
+                electron_log_1.default.info('🗓️ 시나리오를 찾을 수 없습니다.');
+                electron_1.app.quit();
+                return;
+            }
+            const execution = db.createExecution({
+                scenarioId: schedule.scenarioId,
+                status: 'RUNNING',
+                result: null,
+                completedAt: null
+            });
+            const scheduleRun = db.createScheduleRun({
+                scheduleId: schedule.id,
+                executionId: execution.id,
+                status: 'RUNNING'
+            });
+            playwright_electron_executor_1.ElectronPlaywrightExecutor.executeInBackground(execution.id, schedule.scenarioId, scenario.code, (status) => {
+                db.updateScheduleRunStatus(scheduleRun.id, status);
+                electron_log_1.default.info('🗓️ 스케줄 실행 완료, 앱 종료');
+                electron_1.app.quit();
+            });
+            return;
+        }
         // SQLite IPC 핸들러 설정
         electron_log_1.default.info('⚙️ SQLite IPC 핸들러 설정 시작...');
         (0, ipc_handlers_sqlite_1.setupSQLiteHandlers)();

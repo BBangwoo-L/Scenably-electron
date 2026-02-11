@@ -1,8 +1,9 @@
 "use client";
 
-import { Play, Edit, Bug, Trash2, ExternalLink } from "lucide-react";
+import { Play, Edit, Bug, Trash2, ExternalLink, Link as LinkIcon } from "lucide-react";
 import { Button, Badge } from "@/shared/ui";
 import { StatusBadge } from "@/shared/components";
+import { Link } from "react-router-dom";
 import type { ScenarioTableViewProps } from "../lib";
 
 
@@ -35,7 +36,16 @@ export function ScenarioTableView({
                 <tr key={scenario.id} className="border-t hover:bg-muted/25">
                   <td className="p-3">
                     <div>
-                      <div className="font-medium text-sm sm:text-base">{scenario.name}</div>
+                      <div className="flex items-center gap-2">
+                        <div className="font-medium text-sm sm:text-base truncate max-w-[260px]">
+                          {scenario.name}
+                        </div>
+                        {scenario.scheduleId && (
+                          <Link to={`/schedules/${scenario.scheduleId}`} className="text-muted-foreground hover:text-foreground">
+                            <LinkIcon className="h-3 w-3" />
+                          </Link>
+                        )}
+                      </div>
                       {scenario.description && (
                         <div className="text-xs sm:text-sm text-muted-foreground mt-1">
                           {scenario.description}

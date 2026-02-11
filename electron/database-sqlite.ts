@@ -22,6 +22,27 @@ export interface Execution {
   completedAt: string | null;
 }
 
+export interface Schedule {
+  id: string;
+  scenarioId: string;
+  enabled: number;
+  frequency: 'DAILY' | 'WEEKLY' | 'MONTHLY';
+  time: string; // HH:MM
+  dayOfWeek: string | null; // 예: MON,TUE
+  dayOfMonth: number | null; // 1-31
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ScheduleRun {
+  id: string;
+  scheduleId: string;
+  executionId: string;
+  status: 'RUNNING' | 'SUCCESS' | 'FAILURE';
+  startedAt: string;
+  completedAt: string | null;
+}
+
 export class ScenablyDatabase {
   private db: Database.Database;
 
@@ -77,7 +98,37 @@ export class ScenablyDatabase {
         result TEXT,
         startedAt TEXT NOT NULL DEFAULT (datetime('now')),
         completedAt TEXT,
+      FOREIGN KEY (scenarioId) REFERENCES scenarios (id) ON DELETE CASCADE
+      )
+    `);
+
+    // Schedule 테이블 생성
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS schedules (
+        id TEXT PRIMARY KEY,
+        scenarioId TEXT NOT NULL,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        frequency TEXT NOT NULL CHECK (frequency IN ('DAILY', 'WEEKLY', 'MONTHLY')),
+        time TEXT NOT NULL,
+        dayOfWeek TEXT,
+        dayOfMonth INTEGER,
+        createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+        updatedAt TEXT NOT NULL DEFAULT (datetime('now')),
         FOREIGN KEY (scenarioId) REFERENCES scenarios (id) ON DELETE CASCADE
+      )
+    `);
+
+    // Schedule Run 테이블 생성
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS schedule_runs (
+        id TEXT PRIMARY KEY,
+        scheduleId TEXT NOT NULL,
+        executionId TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('RUNNING', 'SUCCESS', 'FAILURE')),
+        startedAt TEXT NOT NULL DEFAULT (datetime('now')),
+        completedAt TEXT,
+        FOREIGN KEY (scheduleId) REFERENCES schedules (id) ON DELETE CASCADE,
+        FOREIGN KEY (executionId) REFERENCES executions (id) ON DELETE CASCADE
       )
     `);
 
@@ -85,6 +136,9 @@ export class ScenablyDatabase {
     this.db.exec(`
       CREATE INDEX IF NOT EXISTS idx_executions_scenario_id ON executions(scenarioId);
       CREATE INDEX IF NOT EXISTS idx_executions_started_at ON executions(startedAt DESC);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_schedules_scenario_id ON schedules(scenarioId);
+      CREATE INDEX IF NOT EXISTS idx_schedule_runs_schedule_id ON schedule_runs(scheduleId);
+      CREATE INDEX IF NOT EXISTS idx_schedule_runs_started_at ON schedule_runs(startedAt DESC);
     `);
 
     console.log('데이터베이스 테이블 초기화 완료');
@@ -258,6 +312,171 @@ export class ScenablyDatabase {
     stmt.run(...values);
 
     return this.db.prepare('SELECT * FROM executions WHERE id = ?').get(id) as Execution;
+  }
+
+  // Schedule CRUD 메서드들
+  getScheduleByScenarioId(scenarioId: string): Schedule | null {
+    const schedule = this.db.prepare(
+      'SELECT * FROM schedules WHERE scenarioId = ?'
+    ).get(scenarioId) as Schedule | undefined;
+    return schedule || null;
+  }
+
+  getScheduleById(id: string): Schedule | null {
+    const schedule = this.db.prepare(
+      'SELECT * FROM schedules WHERE id = ?'
+    ).get(id) as Schedule | undefined;
+    return schedule || null;
+  }
+
+  upsertSchedule(data: Omit<Schedule, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): Schedule {
+    const existing = this.getScheduleByScenarioId(data.scenarioId);
+    const now = new Date().toISOString();
+
+    if (existing) {
+      const stmt = this.db.prepare(`
+        UPDATE schedules
+        SET enabled = ?, frequency = ?, time = ?, dayOfWeek = ?, dayOfMonth = ?, updatedAt = ?
+        WHERE scenarioId = ?
+      `);
+      stmt.run(
+        data.enabled,
+        data.frequency,
+        data.time,
+        data.dayOfWeek ?? null,
+        data.dayOfMonth ?? null,
+        now,
+        data.scenarioId
+      );
+
+      return this.getScheduleByScenarioId(data.scenarioId)!;
+    }
+
+    const id = data.id || this.generateId();
+    const stmt = this.db.prepare(`
+      INSERT INTO schedules (id, scenarioId, enabled, frequency, time, dayOfWeek, dayOfMonth, createdAt, updatedAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    stmt.run(
+      id,
+      data.scenarioId,
+      data.enabled,
+      data.frequency,
+      data.time,
+      data.dayOfWeek ?? null,
+      data.dayOfMonth ?? null,
+      now,
+      now
+    );
+
+    return this.getScheduleByScenarioId(data.scenarioId)!;
+  }
+
+  updateScheduleEnabled(scenarioId: string, enabled: number): Schedule | null {
+    const now = new Date().toISOString();
+    const stmt = this.db.prepare(`
+      UPDATE schedules
+      SET enabled = ?, updatedAt = ?
+      WHERE scenarioId = ?
+    `);
+    stmt.run(enabled, now, scenarioId);
+    return this.getScheduleByScenarioId(scenarioId);
+  }
+
+  deleteScheduleByScenarioId(scenarioId: string): boolean {
+    const stmt = this.db.prepare('DELETE FROM schedules WHERE scenarioId = ?');
+    const result = stmt.run(scenarioId);
+    return result.changes > 0;
+  }
+
+  listSchedules(): Array<Schedule & { scenarioName: string; targetUrl: string }> {
+    const rows = this.db.prepare(`
+      SELECT s.*, sc.name as scenarioName, sc.targetUrl as targetUrl
+      FROM schedules s
+      JOIN scenarios sc ON sc.id = s.scenarioId
+      ORDER BY s.updatedAt DESC
+    `).all() as Array<Schedule & { scenarioName: string; targetUrl: string }>;
+    return rows;
+  }
+
+  listSchedulesWithLatestRun(): Array<Schedule & {
+    scenarioName: string;
+    targetUrl: string;
+    lastStatus: string | null;
+    lastStartedAt: string | null;
+    lastCompletedAt: string | null;
+    lastExecutionId: string | null;
+  }> {
+    const rows = this.db.prepare(`
+      SELECT
+        s.*,
+        sc.name as scenarioName,
+        sc.targetUrl as targetUrl,
+        r.status as lastStatus,
+        r.startedAt as lastStartedAt,
+        r.completedAt as lastCompletedAt,
+        r.executionId as lastExecutionId
+      FROM schedules s
+      JOIN scenarios sc ON sc.id = s.scenarioId
+      LEFT JOIN schedule_runs r ON r.id = (
+        SELECT id FROM schedule_runs
+        WHERE scheduleId = s.id
+        ORDER BY startedAt DESC
+        LIMIT 1
+      )
+      ORDER BY s.updatedAt DESC
+    `).all() as Array<Schedule & {
+      scenarioName: string;
+      targetUrl: string;
+      lastStatus: string | null;
+      lastStartedAt: string | null;
+      lastCompletedAt: string | null;
+      lastExecutionId: string | null;
+    }>;
+
+    return rows;
+  }
+
+  createScheduleRun(data: Omit<ScheduleRun, 'id' | 'startedAt' | 'completedAt'> & {
+    id?: string;
+    startedAt?: string;
+  }): ScheduleRun {
+    const id = data.id || this.generateId();
+    const startedAt = data.startedAt || new Date().toISOString();
+
+    const stmt = this.db.prepare(`
+      INSERT INTO schedule_runs (id, scheduleId, executionId, status, startedAt, completedAt)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `);
+    stmt.run(
+      id,
+      data.scheduleId,
+      data.executionId,
+      data.status,
+      startedAt,
+      null
+    );
+
+    return this.db.prepare('SELECT * FROM schedule_runs WHERE id = ?').get(id) as ScheduleRun;
+  }
+
+  updateScheduleRunStatus(id: string, status: 'SUCCESS' | 'FAILURE'): ScheduleRun | null {
+    const completedAt = new Date().toISOString();
+    const stmt = this.db.prepare(`
+      UPDATE schedule_runs
+      SET status = ?, completedAt = ?
+      WHERE id = ?
+    `);
+    stmt.run(status, completedAt, id);
+    return this.db.prepare('SELECT * FROM schedule_runs WHERE id = ?').get(id) as ScheduleRun | undefined || null;
+  }
+
+  listScheduleRuns(scheduleId: string): ScheduleRun[] {
+    return this.db.prepare(`
+      SELECT * FROM schedule_runs
+      WHERE scheduleId = ?
+      ORDER BY startedAt DESC
+    `).all(scheduleId) as ScheduleRun[];
   }
 
   // 유틸리티 메서드

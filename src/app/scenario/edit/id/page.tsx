@@ -58,6 +58,7 @@ export default function EditScenarioPage() {
     }
   };
 
+
   const handleSave = async () => {
     if (!scenario || !scenario.name.trim()) {
       await openConfirmModal({ message: "시나리오 이름을 입력해주세요" });
@@ -149,6 +150,7 @@ export default function EditScenarioPage() {
       setIsLoading(false);
     }
   };
+
 
   const handleCodeUpdate = (newCode: string) => {
     if (scenario) {
@@ -286,6 +288,7 @@ export default function EditScenarioPage() {
               </Button>
             </CardContent>
           </Card>
+
         </div>
 
         {/* Right Column - Code Editor */}

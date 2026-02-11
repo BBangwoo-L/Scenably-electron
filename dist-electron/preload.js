@@ -24,10 +24,23 @@ const electronAPI = {
     recording: {
         start: (url) => electron_1.ipcRenderer.invoke('recording:start', { url }),
         stop: (sessionId) => electron_1.ipcRenderer.invoke('recording:stop', { sessionId }),
+        onError: (callback) => {
+            electron_1.ipcRenderer.on('recording:error', (_, data) => callback(data));
+            return () => { electron_1.ipcRenderer.removeAllListeners('recording:error'); };
+        },
     },
     // AI 관련 API
     ai: {
         modify: (code, instruction) => electron_1.ipcRenderer.invoke('ai:modify', { code, instruction }),
+    },
+    // 스케줄 관련 API
+    schedules: {
+        getByScenarioId: (scenarioId) => electron_1.ipcRenderer.invoke('schedules:getByScenarioId', scenarioId),
+        save: (data) => electron_1.ipcRenderer.invoke('schedules:save', data),
+        toggle: (scenarioId, enabled) => electron_1.ipcRenderer.invoke('schedules:toggle', { scenarioId, enabled }),
+        delete: (scenarioId) => electron_1.ipcRenderer.invoke('schedules:delete', scenarioId),
+        list: () => electron_1.ipcRenderer.invoke('schedules:list'),
+        runs: (scheduleId) => electron_1.ipcRenderer.invoke('schedules:runs', scheduleId),
     },
 };
 electron_1.contextBridge.exposeInMainWorld('electronAPI', electronAPI);

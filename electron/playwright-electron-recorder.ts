@@ -2,8 +2,9 @@ import { spawn } from 'child_process';
 import { readFile, unlink, writeFile, access } from 'fs/promises';
 import { existsSync } from 'fs';
 import path from 'path';
-import { app } from 'electron';
+import { app, BrowserWindow } from 'electron';
 import electronLog from "electron-log";
+import { lookup } from 'dns/promises';
 
 // 기존 log 함수와 electron-log를 결합
 const log = (message?: any, ...optionalParams: any[]) => {
@@ -17,6 +18,7 @@ interface RecordingSession {
   process?: any;
   outputFile: string;
   status: 'starting' | 'recording' | 'stopping' | 'completed' | 'error';
+  errorMessage?: string;
 }
 
 export class ElectronPlaywrightRecorder {
@@ -336,6 +338,14 @@ export class ElectronPlaywrightRecorder {
   private static async startPlaywrightProcessAsync(session: RecordingSession): Promise<void> {
     // 백그라운드에서 Playwright process 시작
     try {
+      // 0단계: URL 접근 가능성 점검 (DNS)
+      const reachable = await this.checkUrlReachability(session);
+      if (!reachable) {
+        log('🔄 URL 접근 불가, 템플릿으로 대체');
+        await this.generateTemplateCode(session);
+        return;
+      }
+
       // 1단계: 브라우저 설치 상태 확인
       log('🔍 브라우저 설치 상태 확인 중...');
       const browserInstalled = await this.ensureBrowsersInstalled();
@@ -393,6 +403,26 @@ export class ElectronPlaywrightRecorder {
       }
     } catch (error) {
       log(`⚠️ [Recorder] Chromium 진단 중 오류: ${error}`);
+    }
+  }
+
+  private static async checkUrlReachability(session: RecordingSession): Promise<boolean> {
+    try {
+      const parsed = new URL(session.url);
+      await lookup(parsed.hostname);
+      return true;
+    } catch (error: any) {
+      const message = error && String(error.message || error);
+      if (message.includes('ENOTFOUND') || message.includes('ERR_NAME_NOT_RESOLVED')) {
+        session.errorMessage = '도메인 이름을 확인할 수 없습니다. VPN/사내망 연결 또는 DNS 설정을 확인해주세요.';
+      } else if (message.includes('Invalid URL')) {
+        session.errorMessage = 'URL 형식이 올바르지 않습니다. URL이 정확한지 확인해보세요.';
+      } else {
+        session.errorMessage = '네트워크 문제일 수 있습니다. URL이 정확한지 확인해보세요.';
+      }
+      this.notifyRecordingError(session.errorMessage);
+      log(`❌ [Recorder] URL 접근 불가: ${session.errorMessage} (${message})`);
+      return false;
     }
   }
 
@@ -527,7 +557,13 @@ export class ElectronPlaywrightRecorder {
         log(`📤 Playwright stderr: ${errorText}`);
 
         // 특정 에러가 발생하면 fallback으로 전환
-        if (errorText.includes('TargetClosedError') || errorText.includes('Browser closed') || errorText.includes('Process exited')) {
+        if (errorText.includes('ERR_NAME_NOT_RESOLVED')) {
+          session.errorMessage = '도메인 이름을 확인할 수 없습니다. VPN/사내망 연결 또는 DNS 설정을 확인해주세요.';
+          log(`❌ [Recorder] ${session.errorMessage}`);
+          this.notifyRecordingError(session.errorMessage);
+          childProcess.kill();
+          resolve(false);
+        } else if (errorText.includes('TargetClosedError') || errorText.includes('Browser closed') || errorText.includes('Process exited')) {
           log('🔄 Playwright process failed, using template fallback');
           childProcess.kill();
           resolve(false);
@@ -634,6 +670,17 @@ test('Interactive elements test for ${session.url}', async ({ page }) => {
     log('✅ Template code generated');
   }
 
+  private static notifyRecordingError(message: string) {
+    try {
+      const windows = BrowserWindow.getAllWindows();
+      if (windows.length > 0) {
+        windows[0].webContents.send('recording:error', { message });
+      }
+    } catch (error) {
+      log('⚠️ [Recorder] 오류 알림 전송 실패:', error);
+    }
+  }
+
   static async stopRecording(sessionId: string): Promise<{ code: string; message: string }> {
     try {
       log(`🛑 Stopping recording for session: ${sessionId}`);
@@ -686,6 +733,13 @@ test('Interactive elements test for ${session.url}', async ({ page }) => {
 
       this.sessions.delete(sessionId);
       session.status = 'completed';
+
+      if (session.errorMessage && !code) {
+        return {
+          code: this.getDefaultCode(session.url),
+          message: session.errorMessage
+        };
+      }
 
       return {
         code: code || this.getDefaultCode(session.url),

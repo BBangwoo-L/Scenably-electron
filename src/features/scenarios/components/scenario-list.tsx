@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { LoadingSkeleton, EmptyState } from "@/shared/components";
 import { ScenarioItem } from "./scenario-item";
 import { ScenarioGroup } from "./scenario-group";
 import { ScenarioTableView } from "./scenario-table-view";
 import { ScenarioFilterBar } from "./scenario-filter-bar";
 import { useScenarios, useScenarioActions } from "../hooks";
+import { ScheduleService } from "../services";
+import { isElectron } from "@/shared/lib/electron-api-client";
 import { type ViewModeOption } from "@/shared/lib";
 import { filterScenarios, sortScenarios, groupScenarios, type ScenarioFilterOptions, type ScenarioGroupByOption } from "../lib";
 import { useConfirmModalStore } from "@/stores/confirm-modal-store";
@@ -17,6 +19,7 @@ export function ScenarioList() {
   const { isLoading: actionLoading, executeScenario, deleteScenario, debugScenario, editScenario } = useScenarioActions();
   const { openConfirmModal } = useConfirmModalStore();
   const { showToast } = useToastStore();
+  const [scheduleMap, setScheduleMap] = useState<Record<string, string>>({});
 
   const [filters, setFilters] = useState<ScenarioFilterOptions>({
     search: "",
@@ -37,6 +40,24 @@ export function ScenarioList() {
   const groupedScenarios = useMemo(() => {
     return groupScenarios(filteredAndSortedScenarios, groupBy);
   }, [filteredAndSortedScenarios, groupBy]);
+
+  useEffect(() => {
+    if (!isElectron) return;
+    (async () => {
+      try {
+        const schedules = await ScheduleService.list();
+        const map: Record<string, string> = {};
+        schedules.forEach((s) => {
+          if (s.scenarioId && s.id) {
+            map[s.scenarioId] = s.id;
+          }
+        });
+        setScheduleMap(map);
+      } catch {
+        setScheduleMap({});
+      }
+    })();
+  }, [scenarios]);
 
   const handleRun = async (scenarioId: string) => {
     try {
@@ -111,7 +132,10 @@ export function ScenarioList() {
         />
       ) : viewMode === "table" ? (
         <ScenarioTableView
-          scenarios={filteredAndSortedScenarios}
+          scenarios={filteredAndSortedScenarios.map((scenario) => ({
+            ...scenario,
+            scheduleId: scheduleMap[scenario.id]
+          }))}
           isLoading={actionLoading}
           onRun={handleRun}
           onEdit={editScenario}
@@ -124,7 +148,10 @@ export function ScenarioList() {
             <ScenarioGroup
               key={groupName}
               title={groupName}
-              scenarios={groupScenarios}
+              scenarios={groupScenarios.map((scenario) => ({
+                ...scenario,
+                scheduleId: scheduleMap[scenario.id]
+              }))}
               isLoading={actionLoading}
               onRun={handleRun}
               onEdit={editScenario}
@@ -138,7 +165,7 @@ export function ScenarioList() {
           {filteredAndSortedScenarios.map((scenario) => (
             <ScenarioItem
               key={scenario.id}
-              scenario={scenario}
+              scenario={{ ...scenario, scheduleId: scheduleMap[scenario.id] }}
               isLoading={actionLoading}
               onRun={handleRun}
               onEdit={editScenario}

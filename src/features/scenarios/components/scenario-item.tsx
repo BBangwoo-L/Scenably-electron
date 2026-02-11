@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { StatusBadge } from "@/shared/components";
 import { ActionButtonGroup } from "@/features/scenarios";
+import { Link } from "react-router-dom";
+import { Link as LinkIcon } from "lucide-react";
 import { ExecutionDetailDialog } from "./execution-detail-dialog";
 import type { ScenarioItemProps } from "../lib";
 
@@ -69,6 +71,12 @@ export function ScenarioItem({
 
       <div className="text-xs text-muted-foreground mt-2 flex justify-between items-center">
         <span>업데이트: {new Date(scenario.updatedAt).toLocaleDateString()}</span>
+        {scenario.scheduleId && (
+          <Link to={`/schedules/${scenario.scheduleId}`} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
+            <LinkIcon className="h-3 w-3" />
+            스케줄
+          </Link>
+        )}
       </div>
 
       {latestExecution && (

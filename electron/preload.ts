@@ -25,11 +25,25 @@ const electronAPI = {
   recording: {
     start: (url: string) => ipcRenderer.invoke('recording:start', { url }),
     stop: (sessionId: string) => ipcRenderer.invoke('recording:stop', { sessionId }),
+    onError: (callback: (data: any) => void) => {
+      ipcRenderer.on('recording:error', (_, data) => callback(data));
+      return () => { ipcRenderer.removeAllListeners('recording:error'); };
+    },
   },
 
   // AI 관련 API
   ai: {
     modify: (code: string, instruction: string) => ipcRenderer.invoke('ai:modify', { code, instruction }),
+  },
+
+  // 스케줄 관련 API
+  schedules: {
+    getByScenarioId: (scenarioId: string) => ipcRenderer.invoke('schedules:getByScenarioId', scenarioId),
+    save: (data: any) => ipcRenderer.invoke('schedules:save', data),
+    toggle: (scenarioId: string, enabled: boolean) => ipcRenderer.invoke('schedules:toggle', { scenarioId, enabled }),
+    delete: (scenarioId: string) => ipcRenderer.invoke('schedules:delete', scenarioId),
+    list: () => ipcRenderer.invoke('schedules:list'),
+    runs: (scheduleId: string) => ipcRenderer.invoke('schedules:runs', scheduleId),
   },
 };
 

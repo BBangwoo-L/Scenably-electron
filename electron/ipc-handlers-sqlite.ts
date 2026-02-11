@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron';
 import log from 'electron-log';
 import { getDatabase } from './database-sqlite';
+import { createOrUpdateTask, deleteTask, setTaskEnabled } from './scheduler-windows';
 import { ElectronPlaywrightRecorder } from './playwright-electron-recorder';
 import { ElectronPlaywrightDebugger } from './playwright-electron-debug';
 import { ElectronPlaywrightExecutor } from './playwright-electron-executor';
@@ -251,6 +252,153 @@ export function setupSQLiteHandlers() {
     } catch (error) {
       console.error('레코딩 중지 실패:', error);
       return { success: false, error: error instanceof Error ? error.message : '레코딩을 중지할 수 없습니다.' };
+    }
+  });
+
+  // 스케줄링 관련 핸들러 (Windows 전용)
+  ipcMain.handle('schedules:getByScenarioId', async (_, scenarioId: string) => {
+    try {
+      if (!scenarioId) {
+        return { success: false, error: '시나리오 ID가 필요합니다.' };
+      }
+      const schedule = ensureDb().getScheduleByScenarioId(scenarioId);
+      return { success: true, data: schedule };
+    } catch (error) {
+      console.error('스케줄 조회 실패:', error);
+      return { success: false, error: '스케줄을 조회할 수 없습니다.' };
+    }
+  });
+
+  ipcMain.handle('schedules:list', async () => {
+    try {
+      const schedules = ensureDb().listSchedulesWithLatestRun();
+      return { success: true, data: schedules };
+    } catch (error) {
+      console.error('스케줄 목록 조회 실패:', error);
+      return { success: false, error: '스케줄 목록을 조회할 수 없습니다.' };
+    }
+  });
+
+  ipcMain.handle('schedules:runs', async (_, scheduleId: string) => {
+    try {
+      if (!scheduleId) {
+        return { success: false, error: '스케줄 ID가 필요합니다.' };
+      }
+      const runs = ensureDb().listScheduleRuns(scheduleId);
+      return { success: true, data: runs };
+    } catch (error) {
+      console.error('스케줄 이력 조회 실패:', error);
+      return { success: false, error: '스케줄 이력을 조회할 수 없습니다.' };
+    }
+  });
+
+  ipcMain.handle('schedules:save', async (_, data) => {
+    try {
+      const db = ensureDb();
+      console.log('[Schedule] save 요청:', data);
+      const schedule = db.upsertSchedule({
+        scenarioId: data.scenarioId,
+        enabled: data.enabled ? 1 : 0,
+        frequency: data.frequency,
+        time: data.time,
+        dayOfWeek: data.dayOfWeek ?? null,
+        dayOfMonth: data.dayOfMonth ?? null
+      });
+
+      if (process.platform !== 'win32') {
+        console.log('[Schedule] non-win32 등록 완료:', schedule);
+        return { success: true, data: schedule };
+      }
+
+      const taskResult = createOrUpdateTask({
+        id: schedule.id,
+        scenarioId: schedule.scenarioId,
+        frequency: schedule.frequency,
+        time: schedule.time,
+        dayOfWeek: schedule.dayOfWeek ?? undefined,
+        dayOfMonth: schedule.dayOfMonth ?? undefined,
+        enabled: schedule.enabled
+      });
+
+      if (!taskResult.ok) {
+        console.error('[Schedule] 등록 실패:', taskResult.error);
+        db.updateScheduleEnabled(schedule.scenarioId, 0);
+        return {
+          success: false,
+          error: `스케줄 등록 실패: ${taskResult.error || '권한이 부족할 수 있습니다.'}`
+        };
+      }
+
+      console.log('[Schedule] 등록 완료:', schedule);
+      return { success: true, data: schedule };
+    } catch (error) {
+      console.error('스케줄 저장 실패:', error);
+      return { success: false, error: '스케줄을 저장할 수 없습니다.' };
+    }
+  });
+
+  ipcMain.handle('schedules:toggle', async (_, { scenarioId, enabled }) => {
+    try {
+      const db = ensureDb();
+      console.log('[Schedule] toggle 요청:', scenarioId, enabled);
+      const schedule = db.getScheduleByScenarioId(scenarioId);
+      if (!schedule) {
+        return { success: false, error: '스케줄이 없습니다.' };
+      }
+
+      if (process.platform !== 'win32') {
+        console.log('[Schedule] non-win32 toggle:', scenarioId, enabled);
+        const updated = db.updateScheduleEnabled(scenarioId, enabled ? 1 : 0);
+        return { success: true, data: updated };
+      }
+
+      const result = setTaskEnabled(schedule.id, !!enabled);
+      if (!result.ok) {
+        console.error('[Schedule] toggle 실패:', result.error);
+        db.updateScheduleEnabled(scenarioId, 0);
+        return { success: false, error: result.error || '스케줄 상태 변경 실패' };
+      }
+
+      const updated = db.updateScheduleEnabled(scenarioId, enabled ? 1 : 0);
+      console.log('[Schedule] toggle 완료:', updated);
+      return { success: true, data: updated };
+    } catch (error) {
+      console.error('스케줄 토글 실패:', error);
+      return { success: false, error: '스케줄 상태를 변경할 수 없습니다.' };
+    }
+  });
+
+  ipcMain.handle('schedules:delete', async (_, scenarioId: string) => {
+    try {
+      const db = ensureDb();
+      console.log('[Schedule] delete 요청:', scenarioId);
+      const schedule = db.getScheduleByScenarioId(scenarioId);
+      if (!schedule) {
+        return { success: true, data: { deleted: false } };
+      }
+
+      if (process.platform !== 'win32') {
+        const deleted = db.deleteScheduleByScenarioId(scenarioId);
+        console.log('[Schedule] non-win32 delete 완료:', deleted);
+        return { success: true, data: { deleted } };
+      }
+
+      const result = deleteTask(schedule.id);
+      if (!result.ok) {
+        console.error('[Schedule] delete 실패(작업):', result.error);
+        // 작업 삭제가 실패해도 DB에서는 제거해서 UI에서 지워지도록 처리
+      }
+
+      const deleted = db.deleteScheduleByScenarioId(scenarioId);
+      console.log('[Schedule] delete 완료:', deleted);
+      return {
+        success: true,
+        data: { deleted },
+        warning: result.ok ? undefined : (result.error || '작업 삭제 실패')
+      };
+    } catch (error) {
+      console.error('스케줄 삭제 실패:', error);
+      return { success: false, error: '스케줄을 삭제할 수 없습니다.' };
     }
   });
 

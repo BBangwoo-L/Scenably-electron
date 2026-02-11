@@ -207,7 +207,12 @@ export class ElectronPlaywrightExecutor {
     }
   }
 
-  static async executeInBackground(executionId: string, scenarioId: string, code: string): Promise<void> {
+  static async executeInBackground(
+    executionId: string,
+    scenarioId: string,
+    code: string,
+    onComplete?: (status: 'SUCCESS' | 'FAILURE') => void
+  ): Promise<void> {
     try {
       log(`🚀 [Executor] Starting background execution: ${executionId}`);
 
@@ -303,6 +308,9 @@ export class ElectronPlaywrightExecutor {
           stdout,
           stderr
         });
+        if (onComplete) {
+          onComplete(status);
+        }
 
         // Cleanup temp files
         try { await unlink(tempFile); } catch {}

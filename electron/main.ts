@@ -2,7 +2,8 @@ import { app, BrowserWindow } from 'electron';
 import { join } from 'path';
 import log from 'electron-log';
 import { setupSQLiteHandlers } from './ipc-handlers-sqlite';
-import { closeDatabase } from './database-sqlite';
+import { closeDatabase, getDatabase } from './database-sqlite';
+import { ElectronPlaywrightExecutor } from './playwright-electron-executor';
 
 // electron-log 설정
 log.info('🚀 Scenably Electron Main Process Started');
@@ -18,6 +19,8 @@ const isDevelopment = process.env.NODE_ENV === 'development';
 
 let mainWindow: BrowserWindow | null = null;
 
+const scheduleArg = process.argv.find((arg) => arg.startsWith('--run-schedule='));
+const runScheduleId = scheduleArg ? scheduleArg.split('=')[1] : null;
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -55,6 +58,50 @@ app.whenReady().then(async () => {
   try {
     log.info('🏁 Scenably 앱 시작 중...');
     console.log('Scenably 앱 시작 중...');
+
+    if (runScheduleId) {
+      log.info(`🗓️ 스케줄 실행 모드: ${runScheduleId}`);
+      const db = getDatabase();
+      const schedule = db.getScheduleById(runScheduleId);
+      if (!schedule || schedule.enabled !== 1) {
+        log.info('🗓️ 스케줄이 비활성화되었거나 존재하지 않습니다.');
+        app.quit();
+        return;
+      }
+
+      const scenario = db.findScenarioById(schedule.scenarioId);
+      if (!scenario) {
+        log.info('🗓️ 시나리오를 찾을 수 없습니다.');
+        app.quit();
+        return;
+      }
+
+      const execution = db.createExecution({
+        scenarioId: schedule.scenarioId,
+        status: 'RUNNING',
+        result: null,
+        completedAt: null
+      });
+
+      const scheduleRun = db.createScheduleRun({
+        scheduleId: schedule.id,
+        executionId: execution.id,
+        status: 'RUNNING'
+      });
+
+      ElectronPlaywrightExecutor.executeInBackground(
+        execution.id,
+        schedule.scenarioId,
+        scenario.code,
+        (status) => {
+          db.updateScheduleRunStatus(scheduleRun.id, status);
+          log.info('🗓️ 스케줄 실행 완료, 앱 종료');
+          app.quit();
+        }
+      );
+
+      return;
+    }
 
     // SQLite IPC 핸들러 설정
     log.info('⚙️ SQLite IPC 핸들러 설정 시작...');

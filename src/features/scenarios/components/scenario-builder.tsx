@@ -1,12 +1,14 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useScenarioBuilder } from "../hooks";
 import { useRecording } from "@/features/recording/hooks";
 import { ScenarioInfoForm } from "./scenario-info-form";
 import { RecordingControls, TEMPLATE_CODE } from "@/features/recording/components";
 import { CodeEditor } from "./code-editor";
 import { useConfirmModalStore } from "@/stores/confirm-modal-store";
+import { ScheduleService } from "@/features/scenarios/services";
+import { isElectron } from "@/shared/lib/electron-api-client";
 
 interface ScenarioBuilderProps {
   scenarioId?: string;
@@ -39,6 +41,26 @@ export function ScenarioBuilder({ scenarioId }: ScenarioBuilderProps) {
   const [fieldErrors, setFieldErrors] = useState<{ name?: string; targetUrl?: string }>({});
   const nameInputRef = useRef<HTMLInputElement>(null);
   const urlInputRef = useRef<HTMLInputElement>(null);
+  const [scheduleId, setScheduleId] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    if (!scenarioId || !isElectron) {
+      setScheduleId(undefined);
+      return;
+    }
+    let mounted = true;
+    (async () => {
+      try {
+        const schedule = await ScheduleService.getByScenarioId(scenarioId);
+        if (mounted) setScheduleId(schedule?.id);
+      } catch {
+        if (mounted) setScheduleId(undefined);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [scenarioId]);
 
   const clearFieldError = (field: "name" | "targetUrl") => {
     setFieldErrors((prev) => ({ ...prev, [field]: undefined }));
@@ -149,6 +171,7 @@ export function ScenarioBuilder({ scenarioId }: ScenarioBuilderProps) {
     }
   };
 
+
   return (
     <div className="grid gap-6 lg:grid-cols-2">
       {/* Left Column - Scenario Details */}
@@ -159,6 +182,7 @@ export function ScenarioBuilder({ scenarioId }: ScenarioBuilderProps) {
           errors={fieldErrors}
           inputRefs={{ name: nameInputRef, targetUrl: urlInputRef }}
           onClearError={clearFieldError}
+          scheduleId={scheduleId}
         />
 
         <RecordingControls
@@ -175,6 +199,7 @@ export function ScenarioBuilder({ scenarioId }: ScenarioBuilderProps) {
           onNavigateHome={navigateHome}
           onApplyTemplate={handleApplyTemplate}
         />
+
       </div>
 
       {/* Right Column - Code Preview */}
