@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button, Card, CardContent, CardHeader, CardTitle, Input, Label, Switch } from "@/shared/ui";
 import { ScheduleService, ScenarioService, type ScenarioSchedule } from "@/features/scenarios/services";
@@ -8,6 +8,8 @@ import type { Scenario } from "@/features/scenarios/lib";
 import { isElectron } from "@/shared/lib/electron-api-client";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useConfirmModalStore } from "@/stores/confirm-modal-store";
+import { Balloon } from "@/shared/components";
+import { Info } from "lucide-react";
 
 export default function ScheduleCreatePage() {
   const location = useLocation();
@@ -18,6 +20,7 @@ export default function ScheduleCreatePage() {
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showScheduleGuide, setShowScheduleGuide] = useState(false);
   const [form, setForm] = useState<ScenarioSchedule>({
     scenarioId: "",
     enabled: true,
@@ -27,6 +30,7 @@ export default function ScheduleCreatePage() {
     dayOfMonth: 1
   });
   const [isEditMode, setIsEditMode] = useState(false);
+  const scheduleGuideRef = useRef<HTMLDivElement>(null);
 
   const isWindows = useMemo(() => {
     if (typeof navigator === "undefined") return false;
@@ -80,6 +84,20 @@ export default function ScheduleCreatePage() {
     fetchSchedule();
   }, [editId]);
 
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!showScheduleGuide) return;
+      if (scheduleGuideRef.current && !scheduleGuideRef.current.contains(event.target as Node)) {
+        setShowScheduleGuide(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showScheduleGuide]);
+
   const handleSave = async () => {
     if (!form.scenarioId) return;
     try {
@@ -103,7 +121,32 @@ export default function ScheduleCreatePage() {
     <div className="container mx-auto py-6 sm:py-8 px-3 sm:px-4">
       <header className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">{isEditMode ? "스케줄 편집" : "스케줄 등록"}</h1>
+          <div className="relative inline-flex items-center gap-2" ref={scheduleGuideRef}>
+            <h1 className="text-2xl font-bold">{isEditMode ? "스케줄 편집" : "스케줄 등록"}</h1>
+            <button
+              type="button"
+              aria-label="스케줄 안내"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-input text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+              onClick={() => setShowScheduleGuide((prev) => !prev)}
+            >
+              <Info className="h-4 w-4" />
+            </button>
+            <Balloon
+              open={showScheduleGuide}
+              positionClassName="left-0 top-full mt-2"
+              align="left"
+              className="w-[380px] space-y-1.5"
+            >
+              <p className="font-medium">Windows 스케줄 등록 확인 방법</p>
+              <p>1. 시작 메뉴에서 <span className="font-medium">cmd</span>를 검색해 명령 프롬프트를 실행하세요.</p>
+              <p>2. 아래 명령어를 복사해 실행하세요.</p>
+              <code className="block rounded bg-muted px-2 py-1 text-[11px]">
+                schtasks /query /fo LIST /v | findstr /I "TaskName Scenably"
+              </code>
+              <p>3. 결과에 <span className="font-medium">TaskName</span>과 <span className="font-medium">작업 실행 경로</span>가 보이면 정상 등록된 상태입니다.</p>
+              <p className="text-muted-foreground">참고: 작업 스케줄러 GUI에는 바로 표시되지 않을 수 있습니다.</p>
+            </Balloon>
+          </div>
           <p className="text-muted-foreground text-sm">
             시나리오에 반복 실행 스케줄을 등록합니다.
           </p>

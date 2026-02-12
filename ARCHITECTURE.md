@@ -10,9 +10,10 @@ Scenably는 Electron 기반의 데스크톱 애플리케이션으로, React 렌�
 ├─────────────────────────────────────────────────────────┤
 │  Electron Main Process (Node.js)                       │
 │  ├── Window Management & App Lifecycle                 │
-│  ├── IPC Handlers (Database, Playwright)               │
+│  ├── IPC Handlers (Database, Playwright, Schedule)     │
 │  ├── Playwright Recording Engine                       │
 │  ├── Playwright Debug Engine                           │
+│  ├── Windows Task Scheduler Bridge                     │
 │  └── Local SQLite Database                             │
 ├─────────────────────────────────────────────────────────┤
 │  Electron Renderer Process (Chromium)                  │
@@ -35,8 +36,12 @@ Scenably/
 ├── electron/                           # Electron 메인 프로세스
 │   ├── main.ts                         # 앱 진입점, 윈도우 관리, IPC 설정
 │   ├── preload.ts                      # 보안 컨텍스트 브릿지 (렌더러↔메인)
+│   ├── ipc-handlers-sqlite.ts          # 시나리오/실행/스케줄 IPC 핸들러
+│   ├── database-sqlite.ts              # SQLite 스키마 및 CRUD
+│   ├── scheduler-windows.ts            # schtasks 기반 스케줄러 연동
 │   ├── playwright-electron-recorder.ts # Playwright 레코딩 엔진
 │   ├── playwright-electron-debug.ts    # Playwright 디버그 모드 엔진
+│   ├── playwright-electron-executor.ts # 백그라운드 실행 엔진
 │   └── tsconfig.json                   # Electron용 TypeScript 설정
 │
 ├── src/                                # React 렌더러 프로세스
@@ -46,11 +51,15 @@ Scenably/
 │   │   ├── scenario/
 │   │   │   ├── new/page.tsx            # 새 시나리오 생성 페이지
 │   │   │   └── edit/page.tsx           # 기존 시나리오 편집 페이지
+│   │   ├── schedules/
+│   │   │   ├── page.tsx                # 스케줄 목록/필터/토글 페이지
+│   │   │   ├── new/page.tsx            # 스케줄 등록/편집 페이지
+│   │   │   └── id/page.tsx             # 스케줄 상세/이력 페이지
 │   │   └── test-optimizer/page.tsx     # Playwright 코드 최적화 도구
 │   ├── features/                       # 기능별 컴포넌트 그룹
 │   │   ├── layout/components/          # 앱 헤더, 네비게이션 등
 │   │   ├── recording/components/       # 레코딩 컨트롤 UI
-│   │   └── scenarios/components/       # 시나리오 빌더, 에디터, 실행기
+│   │   └── scenarios/                  # 시나리오 + 스케줄 서비스/컴포넌트
 │   ├── shared/                         # 공유 컴포넌트
 │   │   ├── components/                 # 재사용 가능한 공통 컴포넌트
 │   │   └── ui/                         # shadcn/ui 기본 UI 컴포넌트
@@ -98,9 +107,13 @@ interface ElectronAPI {
   executeScenario: (code: string, options?: ExecutionOptions) => Promise<ExecutionResult>
   debugScenario: (code: string, options?: DebugOptions) => Promise<void>
 
-  // 파일 시스템
-  saveScenarioToFile: (scenario: Scenario) => Promise<string>
-  loadScenarioFromFile: () => Promise<Scenario>
+  // 스케줄 작업
+  getScheduleByScenarioId: (scenarioId: string) => Promise<ScenarioSchedule | null>
+  saveSchedule: (data: ScenarioSchedule) => Promise<ScenarioSchedule>
+  toggleSchedule: (scenarioId: string, enabled: boolean) => Promise<ScenarioSchedule>
+  deleteSchedule: (scenarioId: string) => Promise<{ deleted: boolean }>
+  listSchedules: () => Promise<ScenarioScheduleWithScenario[]>
+  listScheduleRuns: (scheduleId: string) => Promise<ScheduleRun[]>
 
   // AI 통합 (추후 구현 예정)
   enhanceWithAI: (code: string, prompt: string) => Promise<string>
@@ -210,6 +223,45 @@ class ElectronPlaywrightExecutor {
 }
 ```
 
+## 🗓️ 스케줄링 아키텍처
+
+스케줄 기능은 SQLite(`schedules`, `schedule_runs`)와 OS 스케줄러를 결합해 동작합니다.
+
+### 스케줄 등록/토글/삭제 흐름
+
+```
+Renderer (스케줄 등록/수정 UI)
+    ↓
+IPC: schedules:save / schedules:toggle / schedules:delete
+    ↓
+Main: ipc-handlers-sqlite.ts
+    ├── DB upsert/update/delete
+    └── Windows인 경우 scheduler-windows.ts 호출
+         ├── schtasks /Create
+         ├── schtasks /Change (/Enable, /Disable)
+         └── schtasks /Delete
+```
+
+### 스케줄 실행 흐름 (Windows 작업 스케줄러)
+
+`scheduler-windows.ts`는 작업 명령을 `"<electron-exec-path>" --run-schedule=<scheduleId>` 형태로 등록합니다.
+
+```
+Windows Task Scheduler 트리거
+    ↓
+Electron main.ts --run-schedule=<id> 모드 실행
+    ↓
+DB에서 schedule/scenario 조회 + enabled 확인
+    ↓
+executions RUNNING 생성 + schedule_runs RUNNING 생성
+    ↓
+ElectronPlaywrightExecutor.executeInBackground(...)
+    ↓
+종료 콜백에서 schedule_runs 상태 업데이트(SUCCESS/FAILURE)
+    ↓
+앱 자동 종료
+```
+
 ## 💾 데이터베이스 아키텍처
 
 ### SQLite 로컬 데이터베이스
@@ -226,31 +278,47 @@ CREATE TABLE scenarios (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   description TEXT,
-  url TEXT NOT NULL,
+  targetUrl TEXT NOT NULL,
   code TEXT NOT NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+  updatedAt TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 -- 실행 결과
-CREATE TABLE execution_results (
+CREATE TABLE executions (
   id TEXT PRIMARY KEY,
-  scenario_id TEXT NOT NULL,
-  status TEXT NOT NULL, -- 'success', 'failed', 'timeout'
-  output TEXT,
-  screenshot_path TEXT,
-  execution_time INTEGER,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (scenario_id) REFERENCES scenarios (id)
+  scenarioId TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('SUCCESS', 'FAILURE', 'RUNNING')),
+  result TEXT,
+  startedAt TEXT NOT NULL DEFAULT (datetime('now')),
+  completedAt TEXT,
+  FOREIGN KEY (scenarioId) REFERENCES scenarios (id) ON DELETE CASCADE
 );
 
--- 레코딩 세션
-CREATE TABLE recording_sessions (
+-- 스케줄 정보 (시나리오 1개당 최대 1개)
+CREATE TABLE schedules (
   id TEXT PRIMARY KEY,
-  status TEXT NOT NULL, -- 'active', 'completed', 'failed'
-  url TEXT NOT NULL,
-  generated_code TEXT,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  scenarioId TEXT NOT NULL,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  frequency TEXT NOT NULL CHECK (frequency IN ('DAILY', 'WEEKLY', 'MONTHLY')),
+  time TEXT NOT NULL,          -- HH:MM
+  dayOfWeek TEXT,              -- MON,TUE,...
+  dayOfMonth INTEGER,          -- 1-31
+  createdAt TEXT NOT NULL DEFAULT (datetime('now')),
+  updatedAt TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (scenarioId) REFERENCES scenarios (id) ON DELETE CASCADE
+);
+
+-- 스케줄 실행 이력
+CREATE TABLE schedule_runs (
+  id TEXT PRIMARY KEY,
+  scheduleId TEXT NOT NULL,
+  executionId TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('RUNNING', 'SUCCESS', 'FAILURE')),
+  startedAt TEXT NOT NULL DEFAULT (datetime('now')),
+  completedAt TEXT,
+  FOREIGN KEY (scheduleId) REFERENCES schedules (id) ON DELETE CASCADE,
+  FOREIGN KEY (executionId) REFERENCES executions (id) ON DELETE CASCADE
 );
 ```
 
@@ -258,19 +326,8 @@ CREATE TABLE recording_sessions (
 
 ```typescript
 // electron/main.ts
-async function initializeDatabase() {
-  const userDataPath = app.getPath('userData');
-  const dbPath = path.join(userDataPath, 'database', 'scenably.db');
-
-  // 데이터베이스 디렉토리 생성
-  await fs.ensureDir(path.dirname(dbPath));
-
-  // 환경 변수 설정 (Prisma 등에서 사용)
-  process.env.DATABASE_URL = `file:${dbPath}`;
-
-  // 스키마 마이그레이션 실행
-  await runDatabaseMigrations();
-}
+const db = getDatabase(); // singleton
+// 내부에서 userData/database/scenably.db 생성 및 테이블 초기화
 ```
 
 ## 📄 주요 페이지 구조
@@ -299,6 +356,26 @@ async function initializeDatabase() {
   - 기존 시나리오 데이터 로드
   - 코드 수정 및 재테스트
   - 실행 결과 확인
+
+### 스케줄 목록 페이지 (`src/app/schedules/page.tsx`)
+- **기능**: 등록된 스케줄 조회/필터/활성화/비활성화
+- **주요 기능**:
+  - 주기/도메인/상태 기반 필터링
+  - 스케줄 즉시 새로고침
+  - 실행 예정 순서 및 최근 상태 확인
+
+### 스케줄 등록/편집 페이지 (`src/app/schedules/new/page.tsx`)
+- **기능**: 시나리오별 반복 실행 규칙 등록
+- **주요 기능**:
+  - `DAILY`/`WEEKLY`/`MONTHLY` 주기 설정
+  - 시간, 요일, 일자 입력
+  - 활성화 상태와 함께 저장
+
+### 스케줄 상세 페이지 (`src/app/schedules/id/page.tsx`)
+- **기능**: 개별 스케줄 설정 및 실행 이력 조회
+- **주요 기능**:
+  - 스케줄 토글/편집/삭제
+  - `schedule_runs` 이력과 `execution` 로그 연결 조회
 
 ### 코드 최적화 페이지 (`src/app/test-optimizer/page.tsx`)
 - **기능**: Playwright codegen 생성 코드를 안정적인 테스트로 변환
@@ -428,6 +505,17 @@ npm run dist:win
      'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'
    ];
    ```
+
+### 스케줄링 호환성 전략
+
+1. **Windows**:
+   - `schtasks` 기반 OS 작업 스케줄러와 실제 연동
+   - 등록/토글/삭제 시 DB + 작업 스케줄러 동기화
+   - 트리거 시 `--run-schedule=<id>` 모드로 앱 실행 후 자동 종료
+
+2. **macOS / Linux**:
+   - 스케줄 정보 저장/조회/편집은 동일하게 지원
+   - OS 작업 스케줄러 연동은 수행하지 않음
 
 ### 파일 시스템 경로 처리
 
